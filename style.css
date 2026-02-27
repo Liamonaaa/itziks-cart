@@ -545,26 +545,39 @@ footer a {
 }
 
 .menu-item-actions,
-.combo-actions {
+.combo-actions,
+.buy-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  direction: rtl;
   flex-wrap: nowrap;
-  flex-shrink: 0;
-  gap: 0.65rem;
-  min-width: 9rem;
-  white-space: nowrap;
 }
 
 .combo-actions {
   margin-top: 0.6rem;
 }
 
+.buy-row .qty,
+.menu-item-actions .qty,
+.combo-actions .qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.buy-row .price,
 .menu-item-actions .price,
 .combo-actions .price {
-  display: inline-block;
-  min-width: 3.3rem;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  white-space: nowrap;
+  font-weight: 700;
+  line-height: 1;
+  position: static;
 }
 
 .cart-panel {

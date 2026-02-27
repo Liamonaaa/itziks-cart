@@ -237,7 +237,7 @@ function readCoffeeOptionsFromMenu(itemId) {
 
 function buildQuantityControls(item) {
   const wrapper = document.createElement('div');
-  wrapper.className = 'order-controls';
+  wrapper.className = 'order-controls qty';
 
   const plusButton = document.createElement('button');
   plusButton.type = 'button';
@@ -269,10 +269,10 @@ function attachControlsToMenuItem(item) {
 
   const actions = document.createElement('div');
   actions.className = item.node.classList.contains('combo')
-    ? 'combo-actions'
-    : 'menu-item-actions';
+    ? 'combo-actions buy-row'
+    : 'menu-item-actions buy-row';
   priceElement.replaceWith(actions);
-  actions.append(priceElement, buildQuantityControls(item));
+  actions.append(buildQuantityControls(item), priceElement);
 
   if (item.isCoffee) {
     const textColumn = item.node.querySelector(':scope > span');
