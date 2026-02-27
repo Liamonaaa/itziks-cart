@@ -675,8 +675,7 @@ footer a {
 }
 
 .order-form input,
-.order-form textarea,
-.order-form select {
+.order-form textarea {
   width: 100%;
   border-radius: 12px;
   border: 1px solid #dfcbb6;
@@ -687,10 +686,42 @@ footer a {
 }
 
 .order-form input:focus,
-.order-form textarea:focus,
-.order-form select:focus {
+.order-form textarea:focus {
   outline: none;
   box-shadow: var(--focus);
+}
+
+.order-form select {
+  width: 100%;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-radius: 999px;
+  border: 1px solid #dfcbb6;
+  background-color: #fff8f1;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.2;
+  min-height: 2.25rem;
+  padding-block: 0.5rem;
+  padding-inline: 0.75rem 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext x='8' y='11' text-anchor='middle' font-size='12' fill='%236f5b4a'%3E%E2%96%BE%3C/text%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 0.7rem center;
+  background-size: 0.85rem;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: var(--focus);
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 .order-form textarea {
@@ -799,18 +830,11 @@ footer a {
 .coffee-options .select {
   flex: 1 1 auto;
   min-width: 0;
-  border: 1px solid #dfcbb6;
-  border-radius: 10px;
-  background: #fff;
-  color: var(--text);
-  padding: 0.35rem 0.45rem;
-  font: inherit;
+  width: 100%;
 }
 
 .select-arrow {
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1;
+  display: none;
 }
 
 .coffee-check {
