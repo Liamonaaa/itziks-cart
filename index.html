@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="he" dir="rtl">
   <head>
     <meta charset="utf-8" />
@@ -21,496 +21,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <style>
-      :root {
-        --bg: #fbf6ef;
-        --bg-2: #f4ede3;
-        --card: #ffffff;
-        --text: #2b2018;
-        --muted: #6f5b4a;
-        --accent: #8b5a2b;
-        --accent-2: #b27a4a;
-        --accent-3: #e6d2be;
-        --shadow: 0 12px 30px rgba(43, 32, 24, 0.12);
-        --radius: 18px;
-        --focus: 0 0 0 3px rgba(139, 90, 43, 0.35);
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        scroll-behavior: smooth;
-      }
-
-      body {
-        margin: 0;
-        font-family: "Rubik", system-ui, -apple-system, sans-serif;
-        background: radial-gradient(circle at top, #fff8f1 0%, var(--bg) 45%, var(--bg-2) 100%);
-        color: var(--text);
-        line-height: 1.6;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      img {
-        max-width: 100%;
-      }
-
-      section {
-        scroll-margin-top: 90px;
-      }
-
-      .container {
-        width: min(1120px, 92vw);
-        margin: 0 auto;
-      }
-
-      .skip-link {
-        position: absolute;
-        left: -9999px;
-        top: 1rem;
-        background: var(--accent);
-        color: #fff;
-        padding: 0.6rem 1rem;
-        border-radius: 999px;
-        z-index: 9999;
-      }
-
-      .skip-link:focus {
-        left: 1rem;
-        outline: none;
-        box-shadow: var(--focus);
-      }
-
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 30;
-        background: rgba(251, 246, 239, 0.95);
-        backdrop-filter: blur(8px);
-        border-bottom: 1px solid rgba(139, 90, 43, 0.12);
-      }
-
-      .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.9rem 0;
-        gap: 1rem;
-      }
-
-      .brand {
-        font-weight: 700;
-        font-size: 1.2rem;
-        letter-spacing: 0.4px;
-        order: 2;
-      }
-
-      .nav-actions {
-        display: flex;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        order: 1;
-      }
-
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.4rem;
-        padding: 0.55rem 1.1rem;
-        border-radius: 999px;
-        border: 1px solid transparent;
-        background: var(--accent);
-        color: #fff;
-        font-weight: 500;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-      }
-
-      .btn.secondary {
-        background: #fff;
-        color: var(--accent);
-        border-color: var(--accent-3);
-      }
-
-      .btn.ghost {
-        background: transparent;
-        border-color: var(--accent-3);
-        color: var(--text);
-      }
-
-      .btn:hover {
-        transform: translateY(-1px);
-        box-shadow: var(--shadow);
-      }
-
-      .btn:focus-visible {
-        outline: none;
-        box-shadow: var(--focus);
-      }
-
-      main {
-        display: flex;
-        flex-direction: column;
-        gap: 4rem;
-        padding: 2.5rem 0 4rem;
-      }
-
-      .hero {
-        display: grid;
-        gap: 2rem;
-        align-items: center;
-      }
-
-      .hero h1 {
-        font-size: clamp(2rem, 4vw, 3rem);
-        margin: 0 0 0.5rem;
-      }
-
-      .hero p {
-        font-size: 1.05rem;
-        color: var(--muted);
-        margin: 0 0 1.5rem;
-      }
-
-      .hero-card {
-        background: var(--card);
-        padding: 1.8rem;
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-      }
-
-      .badge-row {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-      }
-
-      .badge {
-        background: var(--accent-3);
-        color: var(--text);
-        padding: 0.35rem 0.8rem;
-        border-radius: 999px;
-        font-size: 0.9rem;
-      }
-
-      .section-title {
-        font-size: clamp(1.6rem, 3vw, 2.1rem);
-        margin: 0 0 1.2rem;
-      }
-
-      .card-grid {
-        display: grid;
-        gap: 1.2rem;
-      }
-
-      .card {
-        background: var(--card);
-        border-radius: var(--radius);
-        padding: 1.4rem;
-        box-shadow: var(--shadow);
-      }
-
-      .card h3 {
-        margin: 0 0 0.4rem;
-      }
-
-      .card p {
-        margin: 0;
-        color: var(--muted);
-      }
-
-      .menu-grid {
-        display: grid;
-        gap: 1.5rem;
-      }
-
-      .menu-category {
-        background: var(--card);
-        border-radius: var(--radius);
-        padding: 1.4rem;
-        box-shadow: var(--shadow);
-      }
-
-      .menu-category h3 {
-        margin: 0 0 0.8rem;
-      }
-
-      .menu-item {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        padding: 0.6rem 0;
-        border-bottom: 1px dashed #eadfd3;
-      }
-
-      .menu-item:last-child {
-        border-bottom: none;
-      }
-
-      .menu-item span {
-        display: block;
-      }
-
-      .menu-item .desc {
-        font-size: 0.9rem;
-        color: var(--muted);
-      }
-
-      .price {
-        font-weight: 600;
-        color: var(--accent);
-        white-space: nowrap;
-      }
-
-      .combo {
-        background: #fff8f1;
-        border: 1px solid #f0dcc9;
-        border-radius: 14px;
-        padding: 0.8rem 1rem;
-        margin-top: 0.8rem;
-      }
-
-      .highlight {
-        background: linear-gradient(135deg, #fff4ea, #f6e4d4);
-        border-radius: var(--radius);
-        padding: 1.6rem;
-        box-shadow: var(--shadow);
-        display: grid;
-        gap: 0.6rem;
-      }
-
-      .gallery-grid {
-        display: grid;
-        gap: 1rem;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      }
-
-      .gallery-tile {
-        background: linear-gradient(145deg, #f7e7d7, #fdf7f0);
-        border-radius: 16px;
-        padding: 1.2rem;
-        min-height: 120px;
-        display: grid;
-        place-items: center;
-        font-weight: 500;
-        color: var(--accent);
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .gallery-tile svg {
-        width: 42px;
-        height: 42px;
-        margin-bottom: 0.4rem;
-      }
-
-      .gallery-tile img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: inherit;
-        display: block;
-      }
-
-      .reviews {
-        display: grid;
-        gap: 1rem;
-      }
-
-      .review {
-        background: var(--card);
-        border-radius: var(--radius);
-        padding: 1.3rem;
-        box-shadow: var(--shadow);
-      }
-
-      .review strong {
-        display: block;
-        margin-bottom: 0.4rem;
-      }
-
-      .stars {
-        color: #d08c4a;
-        font-size: 1.1rem;
-        margin-bottom: 0.4rem;
-      }
-
-      .location-grid {
-        display: grid;
-        gap: 1.5rem;
-      }
-
-      .map-placeholder {
-        background: linear-gradient(145deg, #efe2d3, #fff8f1);
-        border-radius: var(--radius);
-        min-height: 220px;
-        display: grid;
-        place-items: center;
-        color: var(--muted);
-        font-weight: 500;
-        border: 1px dashed #dfcbb6;
-      }
-
-      .faq {
-        display: grid;
-        gap: 0.8rem;
-      }
-
-      details {
-        background: var(--card);
-        border-radius: 14px;
-        padding: 1rem 1.2rem;
-        box-shadow: var(--shadow);
-      }
-
-      details summary {
-        cursor: pointer;
-        font-weight: 600;
-      }
-
-      details p {
-        margin: 0.6rem 0 0;
-        color: var(--muted);
-      }
-
-      footer {
-        background: #2b2018;
-        color: #f7efe7;
-        padding: 2rem 0 4.5rem;
-      }
-
-      footer a {
-        color: #f7efe7;
-      }
-
-      .footer-grid {
-        display: grid;
-        gap: 1rem;
-      }
-
-      .footer-actions {
-        display: flex;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-      }
-
-      .top-button {
-        position: fixed;
-        left: 1.2rem;
-        bottom: 1.2rem;
-        background: var(--accent);
-        color: #fff;
-        border: none;
-        border-radius: 999px;
-        padding: 0.7rem 0.95rem;
-        cursor: pointer;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s ease, transform 0.2s ease;
-        z-index: 40;
-      }
-
-      .top-button.show {
-        opacity: 1;
-        pointer-events: auto;
-      }
-
-      .toast {
-        position: fixed;
-        right: 1rem;
-        bottom: 5rem;
-        background: #2b2018;
-        color: #fff;
-        padding: 0.6rem 1rem;
-        border-radius: 999px;
-        opacity: 0;
-        transform: translateY(10px);
-        transition: opacity 0.2s ease, transform 0.2s ease;
-        z-index: 50;
-        font-size: 0.95rem;
-      }
-
-      .toast.show {
-        opacity: 1;
-        transform: translateY(0);
-      }
-
-      .mobile-cta {
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        left: 0;
-        background: rgba(251, 246, 239, 0.98);
-        border-top: 1px solid rgba(139, 90, 43, 0.15);
-        padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
-        display: none;
-        gap: 0.6rem;
-        z-index: 35;
-      }
-
-      .mobile-cta .btn {
-        flex: 1;
-      }
-
-      .meta-row {
-        display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
-        color: var(--muted);
-        font-size: 0.95rem;
-      }
-
-      @media (min-width: 760px) {
-        .hero {
-          grid-template-columns: 1.1fr 0.9fr;
-        }
-
-        .card-grid {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        .menu-grid {
-          grid-template-columns: repeat(2, 1fr);
-        }
-
-        .reviews {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        .location-grid {
-          grid-template-columns: 1.1fr 0.9fr;
-        }
-
-        .footer-grid {
-          grid-template-columns: 1.2fr 1fr;
-          align-items: center;
-        }
-      }
-
-      @media (max-width: 760px) {
-        .nav-actions .btn {
-          padding: 0.45rem 0.85rem;
-          font-size: 0.9rem;
-        }
-
-        .mobile-cta {
-          display: flex;
-        }
-
-        footer {
-          padding-bottom: 6.5rem;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <a href="#main" class="skip-link">דלגו לתוכן</a>
@@ -518,7 +29,13 @@
       <div class="container topbar">
         <div class="brand">העגלה של איציק</div>
         <nav class="nav-actions" aria-label="ניווט ראשי">
-          <a class="btn secondary" href="https://wa.me/972500000000" target="_blank" rel="noopener">וואטסאפ</a>
+          <a
+            class="btn secondary"
+            href="https://wa.me/972500000000"
+            target="_blank"
+            rel="noopener"
+            >וואטסאפ</a
+          >
           <a class="btn secondary" href="tel:050-0000000">שיחה</a>
           <a class="btn secondary" href="#location">מיקום</a>
           <a class="btn secondary" href="#menu">תפריט</a>
@@ -531,9 +48,13 @@
         <div>
           <h1 id="hero-title">קפה מצוין באבן יהודה ☕</h1>
           <p>
-            ההדרים 178, אבן יהודה — קפה מקומי, ידידותי ומהיר, בדיוק ליד הבית שלכם.
+            ההדרים 178, אבן יהודה — קפה מקומי, ידידותי ומהיר, בדיוק ליד הבית
+            שלכם.
           </p>
-          <div class="hero-actions" style="display: flex; gap: 0.8rem; flex-wrap: wrap">
+          <div
+            class="hero-actions"
+            style="display: flex; gap: 0.8rem; flex-wrap: wrap"
+          >
             <a
               class="btn"
               href="https://wa.me/972500000000"
@@ -542,7 +63,12 @@
             >
               שלחו הודעה בוואטסאפ
             </a>
-            <a class="btn secondary" href="https://waze.com/ul?q=ההדרים%20178%20אבן%20יהודה" target="_blank" rel="noopener">
+            <a
+              class="btn secondary"
+              href="https://waze.com/ul?q=ההדרים%20178%20אבן%20יהודה"
+              target="_blank"
+              rel="noopener"
+            >
               פתחו ניווט
             </a>
           </div>
@@ -561,8 +87,17 @@
             <span>שעות פעילות: א׳–ה׳ 07:00–13:00 | ו׳ 07:00–12:00</span>
             <span>טלפון: 050-0000000</span>
           </div>
-          <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap">
-            <button class="btn ghost" id="copyPhone" type="button">העתיקו טלפון</button>
+          <div
+            style="
+              margin-top: 1rem;
+              display: flex;
+              gap: 0.6rem;
+              flex-wrap: wrap;
+            "
+          >
+            <button class="btn ghost" id="copyPhone" type="button">
+              העתיקו טלפון
+            </button>
             <a class="btn ghost" href="#menu">לצפייה בתפריט</a>
           </div>
         </div>
@@ -588,166 +123,330 @@
 
       <section id="menu" aria-labelledby="menu-title">
         <h2 id="menu-title" class="section-title">תפריט ומחירים</h2>
-        <p style="color: var(--muted); margin-top: -0.6rem">
+        <p class="menu-note">
           מחירים נוחים, טעמים מדויקים. אפשר להזמין מראש בוואטסאפ.
         </p>
-        <div class="menu-grid">
-          <div class="menu-category">
-            <h3>קפה חם</h3>
-            <!-- עריכת מחירים: עדכנו את הסכומים כאן -->
-            <div class="menu-item">
-              <span>
-                אספרסו
-                <span class="desc">קצר ועוצמתי</span>
-              </span>
-              <span class="price">₪10</span>
+        <div class="order-zone">
+          <div class="menu-grid">
+            <div class="menu-category">
+              <h3>קפה חם</h3>
+              <!-- עריכת פריטים ומחירים: עדכנו data-item-id / data-item-name / data-item-price בכל פריט -->
+              <div
+                class="menu-item"
+                data-item-id="espresso"
+                data-item-name="אספרסו"
+                data-item-price="10"
+              >
+                <span>
+                  אספרסו
+                  <span class="desc">קצר ועוצמתי</span>
+                </span>
+                <span class="price">₪10</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="double-espresso"
+                data-item-name="אספרסו כפול"
+                data-item-price="12"
+              >
+                <span>
+                  אספרסו כפול
+                  <span class="desc">שתי מנות אנרגיה</span>
+                </span>
+                <span class="price">₪12</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="americano"
+                data-item-name="אמריקנו"
+                data-item-price="12"
+              >
+                <span>
+                  אמריקנו
+                  <span class="desc">עדין ומאוזן</span>
+                </span>
+                <span class="price">₪12</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="cappuccino"
+                data-item-name="קפוצ׳ינו"
+                data-item-price="14"
+              >
+                <span>
+                  קפוצ׳ינו
+                  <span class="desc">קצף עשיר וחלק</span>
+                </span>
+                <span class="price">₪14</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="latte"
+                data-item-name="לאטה"
+                data-item-price="15"
+              >
+                <span>
+                  לאטה
+                  <span class="desc">חלב מוקצף וסמיך</span>
+                </span>
+                <span class="price">₪15</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="mocha"
+                data-item-name="מוקה"
+                data-item-price="16"
+              >
+                <span>
+                  מוקה
+                  <span class="desc">שוקולד עדין בפנים</span>
+                </span>
+                <span class="price">₪16</span>
+              </div>
             </div>
-            <div class="menu-item">
-              <span>
-                אספרסו כפול
-                <span class="desc">שתי מנות אנרגיה</span>
-              </span>
-              <span class="price">₪12</span>
+
+            <div class="menu-category">
+              <h3>קפה קר</h3>
+              <div
+                class="menu-item"
+                data-item-id="iced-americano"
+                data-item-name="אייס אמריקנו"
+                data-item-price="14"
+              >
+                <span>
+                  אייס אמריקנו
+                  <span class="desc">מרענן וקליל</span>
+                </span>
+                <span class="price">₪14</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="iced-latte"
+                data-item-name="אייס לאטה"
+                data-item-price="16"
+              >
+                <span>
+                  אייס לאטה
+                  <span class="desc">חלב קר וקפה עשיר</span>
+                </span>
+                <span class="price">₪16</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="iced-mocha"
+                data-item-name="אייס מוקה"
+                data-item-price="17"
+              >
+                <span>
+                  אייס מוקה
+                  <span class="desc">קפה, חלב ושוקולד</span>
+                </span>
+                <span class="price">₪17</span>
+              </div>
             </div>
-            <div class="menu-item">
-              <span>
-                אמריקנו
-                <span class="desc">עדין ומאוזן</span>
-              </span>
-              <span class="price">₪12</span>
+
+            <div class="menu-category">
+              <h3>תה וחליטות</h3>
+              <div
+                class="menu-item"
+                data-item-id="green-tea"
+                data-item-name="תה ירוק"
+                data-item-price="10"
+              >
+                <span>
+                  תה ירוק
+                  <span class="desc">רעננות טבעית</span>
+                </span>
+                <span class="price">₪10</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="mint-tea"
+                data-item-name="נענע"
+                data-item-price="10"
+              >
+                <span>
+                  נענע
+                  <span class="desc">חם ומנחם</span>
+                </span>
+                <span class="price">₪10</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="chamomile"
+                data-item-name="קמומיל"
+                data-item-price="10"
+              >
+                <span>
+                  קמומיל
+                  <span class="desc">עדין לפני יום עמוס</span>
+                </span>
+                <span class="price">₪10</span>
+              </div>
             </div>
-            <div class="menu-item">
-              <span>
-                קפוצ׳ינו
-                <span class="desc">קצף עשיר וחלק</span>
-              </span>
-              <span class="price">₪14</span>
+
+            <div class="menu-category">
+              <h3>מתוקים</h3>
+              <div
+                class="menu-item"
+                data-item-id="butter-croissant"
+                data-item-name="קרואסון חמאה"
+                data-item-price="12"
+              >
+                <span>
+                  קרואסון חמאה
+                  <span class="desc">פריך וחמים</span>
+                </span>
+                <span class="price">₪12</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="chocolate-croissant"
+                data-item-name="קרואסון שוקולד"
+                data-item-price="14"
+              >
+                <span>
+                  קרואסון שוקולד
+                  <span class="desc">עם לב שוקולד</span>
+                </span>
+                <span class="price">₪14</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="choco-chip-cookie"
+                data-item-name="עוגיית שוקולד צ׳יפס"
+                data-item-price="10"
+              >
+                <span>
+                  עוגיית שוקולד צ׳יפס
+                  <span class="desc">גדולה ומפנקת</span>
+                </span>
+                <span class="price">₪10</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="brownie"
+                data-item-name="בראוניז"
+                data-item-price="12"
+              >
+                <span>
+                  בראוניז
+                  <span class="desc">שוקולדי ועשיר</span>
+                </span>
+                <span class="price">₪12</span>
+              </div>
             </div>
-            <div class="menu-item">
-              <span>
-                לאטה
-                <span class="desc">חלב מוקצף וסמיך</span>
-              </span>
-              <span class="price">₪15</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                מוקה
-                <span class="desc">שוקולד עדין בפנים</span>
-              </span>
-              <span class="price">₪16</span>
+
+            <div class="menu-category">
+              <h3>נשנושים / סנדוויצ׳ים</h3>
+              <div
+                class="menu-item"
+                data-item-id="cheese-toast"
+                data-item-name="טוסט גבינה"
+                data-item-price="16"
+              >
+                <span>
+                  טוסט גבינה
+                  <span class="desc">לחם פריך וגבינה נמסה</span>
+                </span>
+                <span class="price">₪16</span>
+              </div>
+              <div
+                class="menu-item"
+                data-item-id="small-sandwich"
+                data-item-name="כריך קטן"
+                data-item-price="18"
+              >
+                <span>
+                  כריך קטן
+                  <span class="desc">ירקות טריים ותוספת לבחירה</span>
+                </span>
+                <span class="price">₪18</span>
+              </div>
+              <div
+                class="combo"
+                data-item-id="morning-combo"
+                data-item-name="קומבו בוקר"
+                data-item-price="24"
+              >
+                <strong>קומבו בוקר</strong>
+                <p class="desc">לאטה + קרואסון חמאה במחיר מיוחד</p>
+                <span class="price">₪24</span>
+              </div>
+              <div
+                class="combo"
+                data-item-id="neighborhood-combo"
+                data-item-name="קומבו שכונתי"
+                data-item-price="20"
+              >
+                <strong>קומבו שכונתי</strong>
+                <p class="desc">אמריקנו + עוגיית שוקולד צ׳יפס</p>
+                <span class="price">₪20</span>
+              </div>
             </div>
           </div>
 
-          <div class="menu-category">
-            <h3>קפה קר</h3>
-            <div class="menu-item">
-              <span>
-                אייס אמריקנו
-                <span class="desc">מרענן וקליל</span>
-              </span>
-              <span class="price">₪14</span>
+          <aside class="cart-panel" id="cartPanel" aria-labelledby="cart-title">
+            <div class="cart-header">
+              <h3 id="cart-title">עגלה</h3>
+              <span class="price" id="cartTotalInline">₪0</span>
             </div>
-            <div class="menu-item">
-              <span>
-                אייס לאטה
-                <span class="desc">חלב קר וקפה עשיר</span>
-              </span>
-              <span class="price">₪16</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                אייס מוקה
-                <span class="desc">קפה, חלב ושוקולד</span>
-              </span>
-              <span class="price">₪17</span>
-            </div>
-          </div>
 
-          <div class="menu-category">
-            <h3>תה וחליטות</h3>
-            <div class="menu-item">
-              <span>
-                תה ירוק
-                <span class="desc">רעננות טבעית</span>
-              </span>
-              <span class="price">₪10</span>
+            <p class="cart-empty" id="cartEmpty">העגלה ריקה כרגע.</p>
+            <div class="cart-items" id="cartItems" aria-live="polite"></div>
+            <div class="cart-summary">
+              <span>סה״כ</span>
+              <strong id="cartTotal">₪0</strong>
             </div>
-            <div class="menu-item">
-              <span>
-                נענע
-                <span class="desc">חם ומנחם</span>
-              </span>
-              <span class="price">₪10</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                קמומיל
-                <span class="desc">עדין לפני יום עמוס</span>
-              </span>
-              <span class="price">₪10</span>
-            </div>
-          </div>
 
-          <div class="menu-category">
-            <h3>מתוקים</h3>
-            <div class="menu-item">
-              <span>
-                קרואסון חמאה
-                <span class="desc">פריך וחמים</span>
-              </span>
-              <span class="price">₪12</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                קרואסון שוקולד
-                <span class="desc">עם לב שוקולד</span>
-              </span>
-              <span class="price">₪14</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                עוגיית שוקולד צ׳יפס
-                <span class="desc">גדולה ומפנקת</span>
-              </span>
-              <span class="price">₪10</span>
-            </div>
-            <div class="menu-item">
-              <span>
-                בראוניז
-                <span class="desc">שוקולדי ועשיר</span>
-              </span>
-              <span class="price">₪12</span>
-            </div>
-          </div>
+            <div class="order-form" id="orderForm">
+              <label for="pickupTime">שעת איסוף</label>
+              <select id="pickupTime" required>
+                <option value="">בחרו שעה</option>
+              </select>
+              <p class="field-hint" id="pickupHint"></p>
 
-          <div class="menu-category">
-            <h3>נשנושים / סנדוויצ׳ים</h3>
-            <div class="menu-item">
-              <span>
-                טוסט גבינה
-                <span class="desc">לחם פריך וגבינה נמסה</span>
-              </span>
-              <span class="price">₪16</span>
+              <label for="customerName">שם</label>
+              <input
+                id="customerName"
+                type="text"
+                autocomplete="name"
+                placeholder="השם שלך"
+                required
+              />
+
+              <label for="customerPhone">טלפון</label>
+              <input
+                id="customerPhone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="050-0000000"
+                required
+              />
+
+              <label for="customerNotes">הערות (אופציונלי)</label>
+              <textarea
+                id="customerNotes"
+                placeholder="לדוגמה: בלי סוכר"
+              ></textarea>
+
+              <div class="cart-actions">
+                <button class="btn" id="sendOrderBtn" type="button">
+                  שלח הזמנה בוואטסאפ
+                </button>
+                <button class="btn secondary" id="clearCartBtn" type="button">
+                  נקה עגלה
+                </button>
+              </div>
+              <p
+                class="form-error"
+                id="formError"
+                role="alert"
+                aria-live="polite"
+              ></p>
             </div>
-            <div class="menu-item">
-              <span>
-                כריך קטן
-                <span class="desc">ירקות טריים ותוספת לבחירה</span>
-              </span>
-              <span class="price">₪18</span>
-            </div>
-            <div class="combo">
-              <strong>קומבו בוקר</strong>
-              <p class="desc">לאטה + קרואסון חמאה במחיר מיוחד</p>
-              <span class="price">₪24</span>
-            </div>
-            <div class="combo">
-              <strong>קומבו שכונתי</strong>
-              <p class="desc">אמריקנו + עוגיית שוקולד צ׳יפס</p>
-              <span class="price">₪20</span>
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
 
@@ -763,45 +462,45 @@
 
       <section aria-labelledby="gallery-title">
         <h2 id="gallery-title" class="section-title">גלריה</h2>
-                <div class="gallery-grid">
+        <div class="gallery-grid">
           <div class="gallery-tile">
             <img
-              src="./assets/Croissant_and_orange_juice.jpg"
+              src="/assets/Croissant_and_orange_juice.jpg"
               alt="מאפים וקפה בעגלת הקפה של איציק"
               loading="lazy"
             />
           </div>
           <div class="gallery-tile">
             <img
-              src="./assets/Coffee_and_croissant.jpg"
+              src="/assets/Coffee_and_croissant.jpg"
               alt="קפה וקרואסון טריים"
               loading="lazy"
             />
           </div>
           <div class="gallery-tile">
             <img
-              src="./assets/Coffee_and_pastries_on_table.jpg"
+              src="/assets/Coffee_and_pastries_on_table.jpg"
               alt="שולחן מאפים וקפה בעגלה"
               loading="lazy"
             />
           </div>
           <div class="gallery-tile">
             <img
-              src="./assets/Croissant_and_orange_juice.jpg"
+              src="/assets/Croissant_and_orange_juice.jpg"
               alt="מאפים וקפה בעגלת הקפה של איציק"
               loading="lazy"
             />
           </div>
           <div class="gallery-tile">
             <img
-              src="./assets/Coffee_and_croissant.jpg"
+              src="/assets/Coffee_and_croissant.jpg"
               alt="קפה וקרואסון טריים"
               loading="lazy"
             />
           </div>
           <div class="gallery-tile">
             <img
-              src="./assets/Coffee_and_pastries_on_table.jpg"
+              src="/assets/Coffee_and_pastries_on_table.jpg"
               alt="שולחן מאפים וקפה בעגלה"
               loading="lazy"
             />
@@ -836,7 +535,14 @@
           <div class="card">
             <h3 style="margin-top: 0">הכתובת שלנו</h3>
             <p style="font-size: 1.1rem">ההדרים 178, אבן יהודה</p>
-            <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem">
+            <div
+              style="
+                display: flex;
+                gap: 0.6rem;
+                flex-wrap: wrap;
+                margin-top: 1rem;
+              "
+            >
               <a
                 class="btn"
                 href="https://waze.com/ul?q=ההדרים%20178%20אבן%20יהודה"
@@ -855,7 +561,11 @@
               </a>
             </div>
           </div>
-          <div class="map-placeholder" role="img" aria-label="מפה סטייליסטית של אבן יהודה">
+          <div
+            class="map-placeholder"
+            role="img"
+            aria-label="מפה סטייליסטית של אבן יהודה"
+          >
             מפה נקייה תופיע כאן
           </div>
         </div>
@@ -894,70 +604,40 @@
         </div>
         <div>
           <div class="footer-actions">
-            <a class="btn secondary" href="https://instagram.com/" target="_blank" rel="noopener">אינסטגרם</a>
-            <a class="btn secondary" href="https://wa.me/972500000000" target="_blank" rel="noopener">וואטסאפ</a>
+            <a
+              class="btn secondary"
+              href="https://instagram.com/"
+              target="_blank"
+              rel="noopener"
+              >אינסטגרם</a
+            >
+            <a
+              class="btn secondary"
+              href="https://wa.me/972500000000"
+              target="_blank"
+              rel="noopener"
+              >וואטסאפ</a
+            >
             <a class="btn secondary" href="tel:050-0000000">050-0000000</a>
           </div>
         </div>
       </div>
     </footer>
 
-    <button class="top-button" id="backToTop" aria-label="חזרה למעלה">למעלה</button>
-    <div class="toast" id="toast" role="status" aria-live="polite">המספר הועתק</div>
-
-    <div class="mobile-cta" aria-label="כפתורי פעולה מהירים">
-      <a class="btn" href="https://wa.me/972500000000" target="_blank" rel="noopener">וואטסאפ</a>
-      <a class="btn secondary" href="tel:050-0000000">שיחה</a>
+    <button class="top-button" id="backToTop" aria-label="חזרה למעלה">
+      למעלה
+    </button>
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      המספר הועתק
     </div>
 
-    <script>
-      // עריכת פרטי קשר: עדכנו כאן את הטלפון והקישורים אם צריך
-      const PHONE = "050-0000000";
+    <div class="mobile-cta" aria-label="כפתורי פעולה מהירים">
+      <button class="btn secondary" id="mobileCartToggle" type="button">
+        פתח עגלה (₪0)
+      </button>
+      <button class="btn" id="mobileWhatsappBtn" type="button">וואטסאפ</button>
+    </div>
 
-      const backToTop = document.getElementById("backToTop");
-      const toast = document.getElementById("toast");
-      const copyPhone = document.getElementById("copyPhone");
-
-      document.querySelectorAll('a[href^="#"]').forEach((link) => {
-        link.addEventListener("click", (event) => {
-          const targetId = link.getAttribute("href");
-          if (!targetId || targetId.length === 1) return;
-          const target = document.querySelector(targetId);
-          if (target) {
-            event.preventDefault();
-            target.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        });
-      });
-
-      window.addEventListener("scroll", () => {
-        if (window.scrollY > 400) {
-          backToTop.classList.add("show");
-        } else {
-          backToTop.classList.remove("show");
-        }
-      });
-
-      backToTop.addEventListener("click", () => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      });
-
-      copyPhone.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(PHONE);
-          toast.classList.add("show");
-          setTimeout(() => toast.classList.remove("show"), 1600);
-        } catch (err) {
-          toast.textContent = "העתקה נכשלה";
-          toast.classList.add("show");
-          setTimeout(() => {
-            toast.classList.remove("show");
-            toast.textContent = "המספר הועתק";
-          }, 1600);
-        }
-      });
-    </script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
-
-
