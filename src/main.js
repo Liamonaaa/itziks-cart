@@ -1,19 +1,19 @@
-﻿// ×¢×¨×™×›×ª ×•×•××˜×¡××¤: ×¢×“×›× ×• ×›××Ÿ ××ª ×ž×¡×¤×¨ ×”×™×¢×“
+// עריכת וואטסאפ: עדכנו כאן את מספר היעד
 const WHATSAPP_NUMBER = '972500000000';
 
-// ×¢×¨×™×›×ª ×©×¢×•×ª ×¤×¢×™×œ×•×ª: 0=×', 1=×‘', ... , 6=×©×‘×ª
+// עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
-  0: { open: '07:00', close: '13:00', label: '×™×•× ××³' },
-  1: { open: '07:00', close: '13:00', label: '×™×•× ×‘×³' },
-  2: { open: '07:00', close: '13:00', label: '×™×•× ×’×³' },
-  3: { open: '07:00', close: '13:00', label: '×™×•× ×“×³' },
-  4: { open: '07:00', close: '13:00', label: '×™×•× ×”×³' },
-  5: { open: '07:00', close: '12:00', label: '×™×•× ×•×³' },
+  0: { open: '07:00', close: '13:00', label: 'יום א׳' },
+  1: { open: '07:00', close: '13:00', label: 'יום ב׳' },
+  2: { open: '07:00', close: '13:00', label: 'יום ג׳' },
+  3: { open: '07:00', close: '13:00', label: 'יום ד׳' },
+  4: { open: '07:00', close: '13:00', label: 'יום ה׳' },
+  5: { open: '07:00', close: '12:00', label: 'יום ו׳' },
   6: null,
 };
 
-const BUSINESS_NAME = '×”×¢×’×œ×” ×©×œ ××™×¦×™×§';
-const BUSINESS_ADDRESS = '×”×”×“×¨×™× 178, ××‘×Ÿ ×™×”×•×“×”';
+const BUSINESS_NAME = 'העגלה של איציק';
+const BUSINESS_ADDRESS = 'ההדרים 178, אבן יהודה';
 const PHONE = '050-0000000';
 const STORAGE_KEY = 'itziks-cart-order-v2';
 const SLOT_STEP_MINUTES = 15;
@@ -39,11 +39,11 @@ const DEFAULT_COFFEE_OPTIONS = {
 };
 
 const COFFEE_LABELS = {
-  size: { small: '×§×˜×Ÿ', large: '×’×“×•×œ (+â‚ª3)' },
+  size: { small: 'קטן', large: 'גדול (+₪3)' },
   milk: {
-    regular: '×¨×’×™×œ',
-    soy: '×¡×•×™×” (+â‚ª2)',
-    oat: '×©×™×‘×•×œ×ª (+â‚ª2)',
+    regular: 'רגיל',
+    soy: 'סויה (+₪2)',
+    oat: 'שיבולת (+₪2)',
   },
 };
 
@@ -100,7 +100,7 @@ const ui = {
 };
 
 function toShekel(value) {
-  return `â‚ª${value}`;
+  return `\u20AA${value}`;
 }
 
 function parseItemData(node) {
@@ -289,7 +289,7 @@ function buildQuantityControls(item) {
   plusButton.type = 'button';
   plusButton.className = 'qty-btn';
   plusButton.textContent = '+';
-  plusButton.setAttribute('aria-label', `×”×•×¡×£ ${item.name}`);
+  plusButton.setAttribute('aria-label', `הוסף ${item.name}`);
 
   const qtyDisplay = document.createElement('span');
   qtyDisplay.className = 'qty-display';
@@ -300,7 +300,7 @@ function buildQuantityControls(item) {
   minusButton.type = 'button';
   minusButton.className = 'qty-btn';
   minusButton.textContent = '-';
-  minusButton.setAttribute('aria-label', `×”×¡×¨ ${item.name}`);
+  minusButton.setAttribute('aria-label', `הסר ${item.name}`);
 
   plusButton.addEventListener('click', () => addItemFromMenu(item.id));
   minusButton.addEventListener('click', () => removeItemFromMenu(item.id));
@@ -465,10 +465,10 @@ function optionsSummary(line) {
   if (!line.options) return '';
   const options = normalizeCoffeeOptions(line.options);
   const parts = [
-    `×’×•×“×œ: ${COFFEE_LABELS.size[options.size]}`,
-    `×—×œ×‘: ${COFFEE_LABELS.milk[options.milk]}`,
-    `×©×•×˜ × ×•×¡×£: ${options.extraShot ? '×›×Ÿ (+â‚ª3)' : '×œ×'}`,
-    `×•× ×™×œ: ${options.vanilla ? '×›×Ÿ (+â‚ª2)' : '×œ×'}`,
+    `גודל: ${COFFEE_LABELS.size[options.size]}`,
+    `חלב: ${COFFEE_LABELS.milk[options.milk]}`,
+    `שוט נוסף: ${options.extraShot ? 'כן (+₪3)' : 'לא'}`,
+    `וניל: ${options.vanilla ? 'כן (+₪2)' : 'לא'}`,
   ];
   return parts.join(' | ');
 }
@@ -511,10 +511,10 @@ function renderCart() {
         }
         ${
           entry.note.trim()
-            ? `<div class="cart-item-note">×”×¢×¨×”: ${escapeHtml(entry.note.trim())}</div>`
+            ? `<div class="cart-item-note">הערה: ${escapeHtml(entry.note.trim())}</div>`
             : ''
         }
-        <button class="line-edit-btn" type="button" data-edit-line-id="${entry.lineId}">×¢×¨×™×›×”</button>
+        <button class="line-edit-btn" type="button" data-edit-line-id="${entry.lineId}">עריכה</button>
       </div>
       <div class="cart-line-total">${toShekel(lineTotal(entry))}</div>
     `;
@@ -525,8 +525,8 @@ function renderCart() {
   cartTotalElement.textContent = totalLabel;
   cartTotalInline.textContent = totalLabel;
   const mobilePrefix = cartPanel.classList.contains('open')
-    ? '×¡×’×•×¨ ×¢×’×œ×”'
-    : '×¤×ª×— ×¢×’×œ×”';
+    ? 'סגור עגלה'
+    : 'פתח עגלה';
   mobileCartToggle.textContent = `${mobilePrefix} (${totalLabel})`;
 }
 
@@ -613,7 +613,7 @@ function formatTime(date) {
 }
 
 function formatDayAndTime(date) {
-  const weekdays = ['××³', '×‘×³', '×’×³', '×“×³', '×”×³', '×•×³', '×©×‘×ª'];
+  const weekdays = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת'];
   return `${weekdays[date.getDay()]} ${formatTime(date)}`;
 }
 
@@ -675,7 +675,7 @@ function refreshPickupOptions() {
   ui.pickupStatus = computePickupStatus();
   const { canCheckout, slots, nextOpen } = ui.pickupStatus;
 
-  pickupSelect.innerHTML = '<option value="">×‘×—×¨×• ×©×¢×”</option>';
+  pickupSelect.innerHTML = '<option value="">בחרו שעה</option>';
   slots.forEach((slot) => {
     const option = document.createElement('option');
     option.value = slot.toISOString();
@@ -694,12 +694,12 @@ function refreshPickupOptions() {
 
   if (canCheckout) {
     pickupSelect.disabled = false;
-    pickupHint.textContent = '×–×ž× ×™ ××™×¡×•×£ ×–×ž×™× ×™× ×‘Ö¾15 ×“×§×•×ª ×§×“×™×ž×” (×¢×“ ×©×¢×ª×™×™×).';
+    pickupHint.textContent = 'זמני איסוף זמינים ב־15 דקות קדימה (עד שעתיים).';
   } else {
     pickupSelect.disabled = true;
     pickupHint.textContent = nextOpen
-      ? `×›×¨×’×¢ ×× ×—× ×• ×ž×—×•×¥ ×œ×©×¢×•×ª ×”×¤×¢×™×œ×•×ª. ×¤×ª×™×—×” ×”×‘××”: ${formatDayAndTime(nextOpen)}.`
-      : '×›×¨×’×¢ ×œ× × ×™×ª×Ÿ ×œ×”×–×ž×™×Ÿ.';
+      ? `כרגע אנחנו מחוץ לשעות הפעילות. פתיחה הבאה: ${formatDayAndTime(nextOpen)}.`
+      : 'כרגע לא ניתן להזמין.';
   }
 
   sendOrderButton.disabled = !canCheckout;
@@ -724,21 +724,21 @@ function isPickupValidNow(value) {
 
 function validateOrder() {
   const entries = buildCartEntries();
-  if (entries.length === 0) return '×”×¢×’×œ×” ×¨×™×§×”. ×”×•×¡×™×¤×• ×œ×¤×—×•×ª ×¤×¨×™×˜ ××—×“.';
+  if (entries.length === 0) return 'העגלה ריקה. הוסיפו לפחות פריט אחד.';
 
-  if (!state.name.trim()) return '×™×© ×œ×”×–×™×Ÿ ×©×.';
-  if (!isValidIsraeliPhone(state.phone)) return '×™×© ×œ×”×–×™×Ÿ ×ž×¡×¤×¨ ×˜×œ×¤×•×Ÿ ×™×©×¨××œ×™ ×ª×§×™×Ÿ.';
+  if (!state.name.trim()) return 'יש להזין שם.';
+  if (!isValidIsraeliPhone(state.phone)) return 'יש להזין מספר טלפון ישראלי תקין.';
 
   if (!ui.pickupStatus.canCheckout) {
     return ui.pickupStatus.nextOpen
-      ? `×›×¨×’×¢ ××™×Ÿ ×§×‘×œ×ª ×”×–×ž× ×•×ª. ×¤×ª×™×—×” ×”×‘××”: ${formatDayAndTime(ui.pickupStatus.nextOpen)}.`
-      : '×›×¨×’×¢ ×œ× × ×™×ª×Ÿ ×œ×”×–×ž×™×Ÿ.';
+      ? `כרגע אין קבלת הזמנות. פתיחה הבאה: ${formatDayAndTime(ui.pickupStatus.nextOpen)}.`
+      : 'כרגע לא ניתן להזמין.';
   }
 
-  if (!state.pickup) return '×™×© ×œ×‘×—×•×¨ ×©×¢×ª ××™×¡×•×£.';
+  if (!state.pickup) return 'יש לבחור שעת איסוף.';
   if (!isPickupValidNow(state.pickup)) {
     refreshPickupOptions();
-    return '×©×¢×ª ×”××™×¡×•×£ ××™× ×” ×–×ž×™× ×”. ×‘×—×¨×• ×©×¢×” ×—×“×©×”.';
+    return 'שעת האיסוף אינה זמינה. בחרו שעה חדשה.';
   }
 
   return '';
@@ -746,18 +746,18 @@ function validateOrder() {
 
 function lineWhatsappText(line) {
   const unit = lineUnitPrice(line);
-  const base = `- ${line.name} x${line.quantity} | ${toShekel(lineTotal(line))} (${toShekel(unit)} ×œ×™×—×™×“×”)`;
+  const base = `- ${line.name} x${line.quantity} | ${toShekel(lineTotal(line))} (${toShekel(unit)} ליחידה)`;
   const parts = [base];
 
   if (line.options) {
     const options = normalizeCoffeeOptions(line.options);
     parts.push(
-      `  ××¤×©×¨×•×™×•×ª: ×’×•×“×œ ${COFFEE_LABELS.size[options.size]}, ×—×œ×‘ ${COFFEE_LABELS.milk[options.milk]}, ×©×•×˜ × ×•×¡×£ ${options.extraShot ? '×›×Ÿ' : '×œ×'}, ×•× ×™×œ ${options.vanilla ? '×›×Ÿ' : '×œ×'}`,
+      `  אפשרויות: גודל ${COFFEE_LABELS.size[options.size]}, חלב ${COFFEE_LABELS.milk[options.milk]}, שוט נוסף ${options.extraShot ? 'כן' : 'לא'}, וניל ${options.vanilla ? 'כן' : 'לא'}`,
     );
   }
 
   if (line.note.trim()) {
-    parts.push(`  ×”×¢×¨×” ×œ×¤×¨×™×˜: ${line.note.trim()}`);
+    parts.push(`  הערה לפריט: ${line.note.trim()}`);
   }
 
   return parts.join('\n');
@@ -765,21 +765,21 @@ function lineWhatsappText(line) {
 
 function buildWhatsappMessage(entries, total) {
   const itemLines = entries.map((entry) => lineWhatsappText(entry));
-  const notes = state.notes.trim() ? state.notes.trim() : '×œ×œ×';
+  const notes = state.notes.trim() ? state.notes.trim() : 'ללא';
 
   return [
-    `×”×–×ž× ×” ×—×“×©×” - ${BUSINESS_NAME}`,
-    `×›×ª×•×‘×ª: ${BUSINESS_ADDRESS}`,
+    `הזמנה חדשה - ${BUSINESS_NAME}`,
+    `כתובת: ${BUSINESS_ADDRESS}`,
     '',
-    '×¤×¨×™×˜×™×:',
+    'פריטים:',
     ...itemLines,
     '',
-    `×¡×”"×›: ${toShekel(total)}`,
-    `×©×¢×ª ××™×¡×•×£: ${selectedPickupLabel()}`,
+    `סה"כ: ${toShekel(total)}`,
+    `שעת איסוף: ${selectedPickupLabel()}`,
     '',
-    `×©×: ${state.name.trim()}`,
-    `×˜×œ×¤×•×Ÿ: ${state.phone.trim()}`,
-    `×”×¢×¨×•×ª ×›×œ×œ×™×•×ª: ${notes}`,
+    `שם: ${state.name.trim()}`,
+    `טלפון: ${state.phone.trim()}`,
+    `הערות כלליות: ${notes}`,
   ].join('\n');
 }
 
@@ -800,13 +800,13 @@ function buildLineEditorModal() {
   modal.hidden = true;
   modal.innerHTML = `
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lineEditTitle">
-      <h3 id="lineEditTitle">×¢×¨×™×›×ª ×¤×¨×™×˜</h3>
+      <h3 id="lineEditTitle">עריכת פריט</h3>
       <div id="lineEditFields"></div>
-      <label for="lineEditNote">×”×¢×¨×” ×œ×¤×¨×™×˜</label>
-      <textarea id="lineEditNote" placeholder="×œ×œ× ×¡×•×›×¨ / ×—× ×ž××•×“ / ××—×¨..."></textarea>
+      <label for="lineEditNote">הערה לפריט</label>
+      <textarea id="lineEditNote" placeholder="ללא סוכר / חם מאוד / אחר..."></textarea>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="lineEditCancel">×‘×™×˜×•×œ</button>
-        <button type="button" class="btn" id="lineEditSave">×©×ž×™×¨×”</button>
+        <button type="button" class="btn secondary" id="lineEditCancel">ביטול</button>
+        <button type="button" class="btn" id="lineEditSave">שמירה</button>
       </div>
     </div>
   `;
@@ -831,11 +831,11 @@ function buildConfirmModal() {
   modal.hidden = true;
   modal.innerHTML = `
     <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-      <h3 id="confirmTitle">××™×©×•×¨ ×”×–×ž× ×”</h3>
+      <h3 id="confirmTitle">אישור הזמנה</h3>
       <div id="confirmContent"></div>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="confirmBack">×—×–×¨×” ×œ×¢×¨×™×›×”</button>
-        <button type="button" class="btn" id="confirmSend">×©×œ×™×—×” ×‘×•×•××˜×¡××¤</button>
+        <button type="button" class="btn secondary" id="confirmBack">חזרה לעריכה</button>
+        <button type="button" class="btn" id="confirmSend">שליחה בוואטסאפ</button>
       </div>
     </div>
   `;
@@ -865,33 +865,33 @@ function openLineEditor(lineId) {
     ui.lineEditor.content.innerHTML = `
       <div class="coffee-options-grid modal-options-grid">
         <label>
-          ×’×•×“×œ
+          גודל
           <div class="select-wrap">
             <select id="lineEditSize" class="select">
-              <option value="small">×§×˜×Ÿ</option>
-              <option value="large">×’×“×•×œ (+â‚ª3)</option>
+              <option value="small">קטן</option>
+              <option value="large">גדול (+₪3)</option>
             </select>
             <span class="select-arrow" aria-hidden="true">▾</span>
           </div>
         </label>
         <label>
-          ×—×œ×‘
+          חלב
           <div class="select-wrap">
             <select id="lineEditMilk" class="select">
-              <option value="regular">×¨×’×™×œ</option>
-              <option value="soy">×¡×•×™×” (+â‚ª2)</option>
-              <option value="oat">×©×™×‘×•×œ×ª (+â‚ª2)</option>
+              <option value="regular">רגיל</option>
+              <option value="soy">סויה (+₪2)</option>
+              <option value="oat">שיבולת (+₪2)</option>
             </select>
             <span class="select-arrow" aria-hidden="true">▾</span>
           </div>
         </label>
         <label class="coffee-check">
           <input type="checkbox" id="lineEditShot" />
-          ×©×•×˜ × ×•×¡×£ (+â‚ª3)
+          שוט נוסף (+₪3)
         </label>
         <label class="coffee-check">
           <input type="checkbox" id="lineEditVanilla" />
-          ×¡×™×¨×•×¤ ×•× ×™×œ (+â‚ª2)
+          סירופ וניל (+₪2)
         </label>
       </div>
     `;
@@ -901,7 +901,7 @@ function openLineEditor(lineId) {
     ui.lineEditor.content.querySelector('#lineEditVanilla').checked = options.vanilla;
   } else {
     ui.lineEditor.content.innerHTML =
-      '<p class="field-hint">×œ×¤×¨×™×˜ ×–×” ××™×Ÿ ××¤×©×¨×•×™×•×ª × ×•×¡×¤×•×ª. × ×™×ª×Ÿ ×œ×¢×“×›×Ÿ ×”×¢×¨×” ×‘×œ×‘×“.</p>';
+      '<p class="field-hint">לפריט זה אין אפשרויות נוספות. ניתן לעדכן הערה בלבד.</p>';
   }
 
   openModal(ui.lineEditor.modal);
@@ -940,7 +940,7 @@ function saveLineEditor() {
 
 function renderConfirmContent(entries, total) {
   const pickup = selectedPickupLabel();
-  const customerNote = state.notes.trim() ? state.notes.trim() : '×œ×œ×';
+  const customerNote = state.notes.trim() ? state.notes.trim() : 'ללא';
   const summaryRows = entries
     .map((line) => {
       const unit = lineUnitPrice(line);
@@ -948,7 +948,7 @@ function renderConfirmContent(entries, total) {
         ? `<div class="confirm-subline">${escapeHtml(optionsSummary(line))}</div>`
         : '';
       const noteBlock = line.note.trim()
-        ? `<div class="confirm-subline">×”×¢×¨×” ×œ×¤×¨×™×˜: ${escapeHtml(line.note.trim())}</div>`
+        ? `<div class="confirm-subline">הערה לפריט: ${escapeHtml(line.note.trim())}</div>`
         : '';
       return `
         <div class="confirm-line">
@@ -966,12 +966,12 @@ function renderConfirmContent(entries, total) {
 
   ui.confirmModal.content.innerHTML = `
     <div class="confirm-lines">${summaryRows}</div>
-    <div class="cart-summary"><span>×¡×”"×›</span><strong>${toShekel(total)}</strong></div>
+    <div class="cart-summary"><span>סה"כ</span><strong>${toShekel(total)}</strong></div>
     <div class="confirm-meta">
-      <div><strong>×©×¢×ª ××™×¡×•×£:</strong> ${escapeHtml(pickup)}</div>
-      <div><strong>×©×:</strong> ${escapeHtml(state.name.trim())}</div>
-      <div><strong>×˜×œ×¤×•×Ÿ:</strong> ${escapeHtml(state.phone.trim())}</div>
-      <div><strong>×”×¢×¨×•×ª ×›×œ×œ×™×•×ª:</strong> ${escapeHtml(customerNote)}</div>
+      <div><strong>שעת איסוף:</strong> ${escapeHtml(pickup)}</div>
+      <div><strong>שם:</strong> ${escapeHtml(state.name.trim())}</div>
+      <div><strong>טלפון:</strong> ${escapeHtml(state.phone.trim())}</div>
+      <div><strong>הערות כלליות:</strong> ${escapeHtml(customerNote)}</div>
     </div>
   `;
 }
@@ -1039,11 +1039,11 @@ function initExistingInteractions() {
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 1600);
     } catch {
-      toast.textContent = '×”×¢×ª×§×” × ×›×©×œ×”';
+      toast.textContent = 'העתקה נכשלה';
       toast.classList.add('show');
       setTimeout(() => {
         toast.classList.remove('show');
-        toast.textContent = '×”×ž×¡×¤×¨ ×”×•×¢×ª×§';
+        toast.textContent = 'המספר הועתק';
       }, 1600);
     }
   });
