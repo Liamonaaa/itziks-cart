@@ -3,13 +3,13 @@ const WHATSAPP_NUMBER = '972500000000';
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
-  0: { open: '07:00', close: '13:00', label: 'יום א׳' },
-  1: { open: '07:00', close: '13:00', label: 'יום ב׳' },
-  2: { open: '07:00', close: '13:00', label: 'יום ג׳' },
-  3: { open: '07:00', close: '13:00', label: 'יום ד׳' },
-  4: { open: '07:00', close: '13:00', label: 'יום ה׳' },
-  5: { open: '07:00', close: '12:00', label: 'יום ו׳' },
-  6: null,
+  0: { open: '07:00', close: '17:00', label: 'יום א׳' },
+  1: { open: '07:00', close: '17:00', label: 'יום ב׳' },
+  2: { open: '07:00', close: '17:00', label: 'יום ג׳' },
+  3: { open: '07:00', close: '17:00', label: 'יום ד׳' },
+  4: { open: '07:00', close: '17:00', label: 'יום ה׳' },
+  5: { open: '07:00', close: '15:00', label: 'יום ו׳' },
+  6: { open: '07:00', close: '17:00', label: 'שבת' },
 };
 
 const BUSINESS_NAME = 'העגלה של איציק';
