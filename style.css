@@ -717,3 +717,157 @@ footer a {
     padding-bottom: 8.2rem;
   }
 }
+
+.coffee-options {
+  margin-top: 0.45rem;
+}
+
+.coffee-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.55rem;
+}
+
+.coffee-options label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.coffee-options select {
+  border: 1px solid #dfcbb6;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+}
+
+.coffee-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.coffee-check input {
+  accent-color: var(--accent);
+}
+
+.cart-item-options {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.cart-item-note {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.line-edit-btn {
+  margin-top: 0.35rem;
+  border: 1px solid var(--accent-3);
+  background: #fff;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.line-edit-btn:hover {
+  box-shadow: var(--shadow);
+}
+
+.btn[disabled],
+.qty-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(43, 32, 24, 0.45);
+  z-index: 70;
+  padding: 1rem;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal-card {
+  width: min(520px, 92vw);
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.modal-card-wide {
+  width: min(620px, 94vw);
+}
+
+.modal-card h3 {
+  margin: 0 0 0.8rem;
+}
+
+.modal-card textarea {
+  width: 100%;
+  min-height: 80px;
+  border-radius: 12px;
+  border: 1px solid #dfcbb6;
+  padding: 0.55rem 0.7rem;
+  margin-top: 0.35rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.modal-options-grid {
+  margin-bottom: 0.55rem;
+}
+
+.confirm-lines {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.confirm-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px dashed #eadfd3;
+  padding-bottom: 0.45rem;
+}
+
+.confirm-subline {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.confirm-meta {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.8rem;
+}
+
+@media (max-width: 760px) {
+  .coffee-options-grid {
+    grid-template-columns: 1fr;
+  }
+}

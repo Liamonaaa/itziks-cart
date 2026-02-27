@@ -15,8 +15,37 @@ const WORKING_HOURS = {
 const BUSINESS_NAME = 'העגלה של איציק';
 const BUSINESS_ADDRESS = 'ההדרים 178, אבן יהודה';
 const PHONE = '050-0000000';
-const STORAGE_KEY = 'itziks-cart-order-v1';
+const STORAGE_KEY = 'itziks-cart-order-v2';
 const SLOT_STEP_MINUTES = 15;
+const PREP_TIME_MINUTES = 15;
+
+const COFFEE_ITEM_IDS = new Set([
+  'espresso',
+  'double-espresso',
+  'americano',
+  'cappuccino',
+  'latte',
+  'mocha',
+  'iced-americano',
+  'iced-latte',
+  'iced-mocha',
+]);
+
+const DEFAULT_COFFEE_OPTIONS = {
+  size: 'small',
+  milk: 'regular',
+  extraShot: false,
+  vanilla: false,
+};
+
+const COFFEE_LABELS = {
+  size: { small: 'קטן', large: 'גדול (+₪3)' },
+  milk: {
+    regular: 'רגיל',
+    soy: 'סויה (+₪2)',
+    oat: 'שיבולת (+₪2)',
+  },
+};
 
 const menuNodes = Array.from(document.querySelectorAll('#menu [data-item-id]'));
 const itemsById = new Map();
@@ -43,11 +72,30 @@ const toast = document.getElementById('toast');
 const copyPhone = document.getElementById('copyPhone');
 
 const state = {
-  cart: {},
+  cartLines: [],
   name: '',
   phone: '',
   notes: '',
   pickup: '',
+  lastOptions: {},
+};
+
+const ui = {
+  pickupStatus: { canCheckout: false, nextOpen: null, slots: [] },
+  lineEditor: {
+    modal: null,
+    content: null,
+    noteInput: null,
+    cancelButton: null,
+    saveButton: null,
+    editingLineId: null,
+  },
+  confirmModal: {
+    modal: null,
+    content: null,
+    backButton: null,
+    sendButton: null,
+  },
 };
 
 function toShekel(value) {
@@ -59,7 +107,132 @@ function parseItemData(node) {
   const name = node.dataset.itemName;
   const price = Number(node.dataset.itemPrice || 0);
   if (!id || !name || Number.isNaN(price)) return null;
-  return { id, name, price, node };
+  return { id, name, price, node, isCoffee: COFFEE_ITEM_IDS.has(id) };
+}
+
+function isCoffeeItem(itemId) {
+  return COFFEE_ITEM_IDS.has(itemId);
+}
+
+function normalizeCoffeeOptions(options) {
+  const raw = options || {};
+  const size = raw.size === 'large' ? 'large' : 'small';
+  const milk = ['regular', 'soy', 'oat'].includes(raw.milk)
+    ? raw.milk
+    : 'regular';
+  return {
+    size,
+    milk,
+    extraShot: Boolean(raw.extraShot),
+    vanilla: Boolean(raw.vanilla),
+  };
+}
+
+function copyOptions(options) {
+  return { ...normalizeCoffeeOptions(options) };
+}
+
+function optionsEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  const left = normalizeCoffeeOptions(a);
+  const right = normalizeCoffeeOptions(b);
+  return (
+    left.size === right.size &&
+    left.milk === right.milk &&
+    left.extraShot === right.extraShot &&
+    left.vanilla === right.vanilla
+  );
+}
+
+function optionPrice(options) {
+  if (!options) return 0;
+  const normalized = normalizeCoffeeOptions(options);
+  let extra = 0;
+  if (normalized.size === 'large') extra += 3;
+  if (normalized.milk === 'soy' || normalized.milk === 'oat') extra += 2;
+  if (normalized.extraShot) extra += 3;
+  if (normalized.vanilla) extra += 2;
+  return extra;
+}
+
+function lineUnitPrice(line) {
+  return line.basePrice + optionPrice(line.options);
+}
+
+function lineTotal(line) {
+  return line.quantity * lineUnitPrice(line);
+}
+
+function createLineId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `line-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function menuNodeById(itemId) {
+  return document.querySelector(`#menu [data-item-id="${itemId}"]`);
+}
+
+function buildCoffeeOptionsEditor(itemId) {
+  const options = copyOptions(
+    state.lastOptions[itemId] || DEFAULT_COFFEE_OPTIONS,
+  );
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'coffee-options';
+  wrapper.dataset.itemId = itemId;
+  wrapper.innerHTML = `
+    <div class="coffee-options-grid">
+      <label>
+        גודל
+        <select class="coffee-size">
+          <option value="small">קטן</option>
+          <option value="large">גדול (+₪3)</option>
+        </select>
+      </label>
+      <label>
+        חלב
+        <select class="coffee-milk">
+          <option value="regular">רגיל</option>
+          <option value="soy">סויה (+₪2)</option>
+          <option value="oat">שיבולת (+₪2)</option>
+        </select>
+      </label>
+      <label class="coffee-check">
+        <input type="checkbox" class="coffee-shot" />
+        שוט נוסף (+₪3)
+      </label>
+      <label class="coffee-check">
+        <input type="checkbox" class="coffee-vanilla" />
+        סירופ וניל (+₪2)
+      </label>
+    </div>
+  `;
+
+  wrapper.querySelector('.coffee-size').value = options.size;
+  wrapper.querySelector('.coffee-milk').value = options.milk;
+  wrapper.querySelector('.coffee-shot').checked = options.extraShot;
+  wrapper.querySelector('.coffee-vanilla').checked = options.vanilla;
+
+  wrapper.addEventListener('change', () => {
+    state.lastOptions[itemId] = readCoffeeOptionsFromMenu(itemId);
+    saveState();
+  });
+
+  return wrapper;
+}
+
+function readCoffeeOptionsFromMenu(itemId) {
+  const root = menuNodeById(itemId)?.querySelector('.coffee-options');
+  if (!root) return copyOptions(DEFAULT_COFFEE_OPTIONS);
+
+  const options = {
+    size: root.querySelector('.coffee-size')?.value,
+    milk: root.querySelector('.coffee-milk')?.value,
+    extraShot: root.querySelector('.coffee-shot')?.checked,
+    vanilla: root.querySelector('.coffee-vanilla')?.checked,
+  };
+  return normalizeCoffeeOptions(options);
 }
 
 function buildQuantityControls(item) {
@@ -83,12 +256,8 @@ function buildQuantityControls(item) {
   minusButton.textContent = '-';
   minusButton.setAttribute('aria-label', `הסר ${item.name}`);
 
-  plusButton.addEventListener('click', () =>
-    setItemQuantity(item.id, getItemQuantity(item.id) + 1),
-  );
-  minusButton.addEventListener('click', () =>
-    setItemQuantity(item.id, getItemQuantity(item.id) - 1),
-  );
+  plusButton.addEventListener('click', () => addItemFromMenu(item.id));
+  minusButton.addEventListener('click', () => removeItemFromMenu(item.id));
 
   wrapper.append(plusButton, qtyDisplay, minusButton);
   return wrapper;
@@ -104,44 +273,170 @@ function attachControlsToMenuItem(item) {
     : 'menu-item-actions';
   priceElement.replaceWith(actions);
   actions.append(priceElement, buildQuantityControls(item));
+
+  if (item.isCoffee) {
+    const textColumn = item.node.querySelector(':scope > span');
+    if (textColumn) {
+      textColumn.append(buildCoffeeOptionsEditor(item.id));
+    }
+  }
 }
 
 function getItemQuantity(itemId) {
-  return Number(state.cart[itemId] || 0);
+  return state.cartLines
+    .filter((line) => line.itemId === itemId)
+    .reduce((sum, line) => sum + line.quantity, 0);
 }
 
-function setItemQuantity(itemId, quantity) {
-  if (quantity <= 0) {
-    delete state.cart[itemId];
-  } else {
-    state.cart[itemId] = quantity;
+function findMatchingEditableLine(itemId, options) {
+  return state.cartLines.find(
+    (line) =>
+      line.itemId === itemId &&
+      line.note.trim() === '' &&
+      optionsEqual(line.options, options),
+  );
+}
+
+function addItemFromMenu(itemId) {
+  const item = itemsById.get(itemId);
+  if (!item) return;
+
+  const options = item.isCoffee
+    ? readCoffeeOptionsFromMenu(itemId)
+    : null;
+
+  if (item.isCoffee) {
+    state.lastOptions[itemId] = copyOptions(options);
   }
+
+  const existing = findMatchingEditableLine(itemId, options);
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    state.cartLines.push({
+      lineId: createLineId(),
+      itemId: item.id,
+      name: item.name,
+      basePrice: item.price,
+      quantity: 1,
+      options,
+      note: '',
+    });
+  }
+
   saveState();
   renderCart();
 }
 
+function removeItemFromMenu(itemId) {
+  const item = itemsById.get(itemId);
+  if (!item) return;
+
+  if (getItemQuantity(itemId) === 0) return;
+
+  let target = null;
+  if (item.isCoffee) {
+    const selectedOptions = readCoffeeOptionsFromMenu(itemId);
+    target = state.cartLines.find(
+      (line) =>
+        line.itemId === itemId &&
+        line.note.trim() === '' &&
+        optionsEqual(line.options, selectedOptions),
+    );
+  }
+
+  if (!target) {
+    for (let i = state.cartLines.length - 1; i >= 0; i -= 1) {
+      if (state.cartLines[i].itemId === itemId) {
+        target = state.cartLines[i];
+        break;
+      }
+    }
+  }
+
+  if (!target) return;
+
+  target.quantity -= 1;
+  if (target.quantity <= 0) {
+    state.cartLines = state.cartLines.filter((line) => line.lineId !== target.lineId);
+  }
+
+  saveState();
+  renderCart();
+}
+
+function sanitizeCartLine(line) {
+  if (!line || typeof line !== 'object') return null;
+
+  const item = itemsById.get(line.itemId);
+  if (!item) return null;
+
+  const quantity = Number(line.quantity || 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+
+  return {
+    lineId: typeof line.lineId === 'string' ? line.lineId : createLineId(),
+    itemId: item.id,
+    name: item.name,
+    basePrice: item.price,
+    quantity: Math.floor(quantity),
+    options: item.isCoffee ? normalizeCoffeeOptions(line.options) : null,
+    note: typeof line.note === 'string' ? line.note : '',
+  };
+}
+
+function mergeDuplicateLines() {
+  const merged = [];
+  state.cartLines.forEach((line) => {
+    const duplicate = merged.find(
+      (candidate) =>
+        candidate.itemId === line.itemId &&
+        candidate.note.trim() === line.note.trim() &&
+        optionsEqual(candidate.options, line.options),
+    );
+    if (duplicate) {
+      duplicate.quantity += line.quantity;
+    } else {
+      merged.push({ ...line });
+    }
+  });
+  state.cartLines = merged;
+}
+
 function buildCartEntries() {
-  return Object.entries(state.cart)
-    .map(([id, quantity]) => {
-      const item = itemsById.get(id);
-      if (!item) return null;
-      return {
-        id,
-        quantity,
-        name: item.name,
-        price: item.price,
-        lineTotal: item.price * quantity,
-      };
-    })
+  return state.cartLines
+    .map((line) => sanitizeCartLine(line))
     .filter(Boolean);
 }
 
 function totalFromEntries(entries) {
-  return entries.reduce((sum, entry) => sum + entry.lineTotal, 0);
+  return entries.reduce((sum, entry) => sum + lineTotal(entry), 0);
+}
+
+function optionsSummary(line) {
+  if (!line.options) return '';
+  const options = normalizeCoffeeOptions(line.options);
+  const parts = [
+    `גודל: ${COFFEE_LABELS.size[options.size]}`,
+    `חלב: ${COFFEE_LABELS.milk[options.milk]}`,
+    `שוט נוסף: ${options.extraShot ? 'כן (+₪3)' : 'לא'}`,
+    `וניל: ${options.vanilla ? 'כן (+₪2)' : 'לא'}`,
+  ];
+  return parts.join(' | ');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function renderCart() {
   const entries = buildCartEntries();
+  state.cartLines = entries;
   const total = totalFromEntries(entries);
 
   menuNodes.forEach((node) => {
@@ -154,14 +449,26 @@ function renderCart() {
   cartEmptyElement.style.display = entries.length === 0 ? 'block' : 'none';
 
   entries.forEach((entry) => {
+    const unitPrice = lineUnitPrice(entry);
     const line = document.createElement('div');
     line.className = 'cart-item';
     line.innerHTML = `
       <div>
-        <div class="cart-item-name">${entry.name}</div>
-        <div class="cart-item-meta">${entry.quantity} x ${toShekel(entry.price)}</div>
+        <div class="cart-item-name">${escapeHtml(entry.name)}</div>
+        <div class="cart-item-meta">${entry.quantity} x ${toShekel(unitPrice)}</div>
+        ${
+          entry.options
+            ? `<div class="cart-item-options">${escapeHtml(optionsSummary(entry))}</div>`
+            : ''
+        }
+        ${
+          entry.note.trim()
+            ? `<div class="cart-item-note">הערה: ${escapeHtml(entry.note.trim())}</div>`
+            : ''
+        }
+        <button class="line-edit-btn" type="button" data-edit-line-id="${entry.lineId}">עריכה</button>
       </div>
-      <div class="cart-line-total">${toShekel(entry.lineTotal)}</div>
+      <div class="cart-line-total">${toShekel(lineTotal(entry))}</div>
     `;
     cartItemsElement.append(line);
   });
@@ -175,15 +482,19 @@ function renderCart() {
   mobileCartToggle.textContent = `${mobilePrefix} (${totalLabel})`;
 }
 
-function saveState() {
-  const snapshot = {
-    cart: state.cart,
+function serializeState() {
+  return {
+    cartLines: state.cartLines,
     name: state.name,
     phone: state.phone,
     notes: state.notes,
     pickup: state.pickup,
+    lastOptions: state.lastOptions,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState()));
 }
 
 function restoreState() {
@@ -192,14 +503,17 @@ function restoreState() {
 
   try {
     const parsed = JSON.parse(raw);
-    state.cart =
-      parsed.cart && typeof parsed.cart === 'object' ? parsed.cart : {};
+    state.cartLines = Array.isArray(parsed.cartLines) ? parsed.cartLines : [];
     state.name = typeof parsed.name === 'string' ? parsed.name : '';
     state.phone = typeof parsed.phone === 'string' ? parsed.phone : '';
     state.notes = typeof parsed.notes === 'string' ? parsed.notes : '';
     state.pickup = typeof parsed.pickup === 'string' ? parsed.pickup : '';
+    state.lastOptions =
+      parsed.lastOptions && typeof parsed.lastOptions === 'object'
+        ? parsed.lastOptions
+        : {};
   } catch {
-    state.cart = {};
+    state.cartLines = [];
   }
 }
 
@@ -215,7 +529,7 @@ function isValidIsraeliPhone(phone) {
   );
 }
 
-function quarterHour(date) {
+function roundUpToQuarter(date) {
   const rounded = new Date(date);
   rounded.setSeconds(0, 0);
   const minutes = rounded.getMinutes();
@@ -257,70 +571,61 @@ function formatDayAndTime(date) {
 
 function nextOpeningDate(fromDate) {
   const base = new Date(fromDate);
-
   for (let offset = 0; offset < 8; offset += 1) {
     const day = new Date(base);
     day.setDate(base.getDate() + offset);
     const schedule = hoursForDate(day);
     if (!schedule) continue;
-
     if (offset === 0 && fromDate < schedule.openTime) {
       return schedule.openTime;
     }
-
     if (offset > 0) {
       return schedule.openTime;
     }
   }
-
   return null;
 }
 
 function generateSlots(startDate, endDate) {
   const slots = [];
-  let cursor = quarterHour(startDate);
-
+  let cursor = new Date(startDate);
   while (cursor <= endDate) {
-    const schedule = hoursForDate(cursor);
-    if (
-      schedule &&
-      cursor >= schedule.openTime &&
-      cursor <= schedule.closeTime
-    ) {
-      slots.push(new Date(cursor));
-    }
+    slots.push(new Date(cursor));
     cursor = new Date(cursor.getTime() + SLOT_STEP_MINUTES * 60 * 1000);
   }
-
   return slots;
 }
 
-function populatePickupOptions() {
+function computePickupStatus() {
   const now = new Date();
-  const minimum = quarterHour(
-    new Date(now.getTime() + SLOT_STEP_MINUTES * 60 * 1000),
-  );
-  const maxWindow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
   const scheduleNow = hoursForDate(now);
-  const isOpenNow =
-    scheduleNow && now >= scheduleNow.openTime && now <= scheduleNow.closeTime;
   const nextOpen = nextOpeningDate(now);
+  const minReady = new Date(now.getTime() + PREP_TIME_MINUTES * 60 * 1000);
+  const latestAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
-  let slots = generateSlots(minimum, maxWindow);
-  let hint = 'בחרו זמן איסוף בטווח של 15 דקות.';
-
-  if (!isOpenNow && nextOpen) {
-    hint = `כרגע אנחנו מחוץ לשעות הפעילות. פתיחה הבאה: ${formatDayAndTime(nextOpen)}.`;
+  if (!scheduleNow || now < scheduleNow.openTime || now >= scheduleNow.closeTime) {
+    return { canCheckout: false, slots: [], nextOpen };
   }
 
-  if (slots.length === 0) {
-    if (nextOpen) {
-      const fallbackEnd = new Date(nextOpen.getTime() + 2 * 60 * 60 * 1000);
-      slots = generateSlots(nextOpen, fallbackEnd);
-    } else {
-      hint = 'לא נמצאה שעה פנויה כרגע.';
-    }
+  const start = roundUpToQuarter(minReady);
+  const end = new Date(Math.min(latestAllowed.getTime(), scheduleNow.closeTime.getTime()));
+
+  if (start > end) {
+    return { canCheckout: false, slots: [], nextOpen: nextOpeningDate(new Date(now.getTime() + 60 * 1000)) };
   }
+
+  const slots = generateSlots(start, end);
+  return { canCheckout: slots.length > 0, slots, nextOpen };
+}
+
+function selectedPickupLabel() {
+  const option = pickupSelect.selectedOptions[0];
+  return option ? option.textContent : '';
+}
+
+function refreshPickupOptions() {
+  ui.pickupStatus = computePickupStatus();
+  const { canCheckout, slots, nextOpen } = ui.pickupStatus;
 
   pickupSelect.innerHTML = '<option value="">בחרו שעה</option>';
   slots.forEach((slot) => {
@@ -339,13 +644,34 @@ function populatePickupOptions() {
     state.pickup = '';
   }
 
-  pickupHint.textContent = hint;
+  if (canCheckout) {
+    pickupSelect.disabled = false;
+    pickupHint.textContent = 'זמני איסוף זמינים ב־15 דקות קדימה (עד שעתיים).';
+  } else {
+    pickupSelect.disabled = true;
+    pickupHint.textContent = nextOpen
+      ? `כרגע אנחנו מחוץ לשעות הפעילות. פתיחה הבאה: ${formatDayAndTime(nextOpen)}.`
+      : 'כרגע לא ניתן להזמין.';
+  }
+
+  sendOrderButton.disabled = !canCheckout;
+  mobileWhatsappButton.disabled = !canCheckout;
   saveState();
 }
 
-function selectedPickupLabel() {
-  const option = pickupSelect.selectedOptions[0];
-  return option ? option.textContent : '';
+function isPickupValidNow(value) {
+  if (!value) return false;
+  const pickup = new Date(value);
+  if (Number.isNaN(pickup.getTime())) return false;
+
+  const now = new Date();
+  const minReady = new Date(now.getTime() + PREP_TIME_MINUTES * 60 * 1000);
+  const latestAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  if (pickup < minReady || pickup > latestAllowed) return false;
+
+  const schedule = hoursForDate(pickup);
+  if (!schedule) return false;
+  return pickup >= schedule.openTime && pickup <= schedule.closeTime;
 }
 
 function validateOrder() {
@@ -353,18 +679,44 @@ function validateOrder() {
   if (entries.length === 0) return 'העגלה ריקה. הוסיפו לפחות פריט אחד.';
 
   if (!state.name.trim()) return 'יש להזין שם.';
-  if (!isValidIsraeliPhone(state.phone))
-    return 'יש להזין מספר טלפון ישראלי תקין.';
+  if (!isValidIsraeliPhone(state.phone)) return 'יש להזין מספר טלפון ישראלי תקין.';
+
+  if (!ui.pickupStatus.canCheckout) {
+    return ui.pickupStatus.nextOpen
+      ? `כרגע אין קבלת הזמנות. פתיחה הבאה: ${formatDayAndTime(ui.pickupStatus.nextOpen)}.`
+      : 'כרגע לא ניתן להזמין.';
+  }
+
   if (!state.pickup) return 'יש לבחור שעת איסוף.';
+  if (!isPickupValidNow(state.pickup)) {
+    refreshPickupOptions();
+    return 'שעת האיסוף אינה זמינה. בחרו שעה חדשה.';
+  }
 
   return '';
 }
 
+function lineWhatsappText(line) {
+  const unit = lineUnitPrice(line);
+  const base = `- ${line.name} x${line.quantity} | ${toShekel(lineTotal(line))} (${toShekel(unit)} ליחידה)`;
+  const parts = [base];
+
+  if (line.options) {
+    const options = normalizeCoffeeOptions(line.options);
+    parts.push(
+      `  אפשרויות: גודל ${COFFEE_LABELS.size[options.size]}, חלב ${COFFEE_LABELS.milk[options.milk]}, שוט נוסף ${options.extraShot ? 'כן' : 'לא'}, וניל ${options.vanilla ? 'כן' : 'לא'}`,
+    );
+  }
+
+  if (line.note.trim()) {
+    parts.push(`  הערה לפריט: ${line.note.trim()}`);
+  }
+
+  return parts.join('\n');
+}
+
 function buildWhatsappMessage(entries, total) {
-  const lines = entries.map(
-    (entry) =>
-      `- ${entry.name} x${entry.quantity} | ${toShekel(entry.lineTotal)}`,
-  );
+  const itemLines = entries.map((entry) => lineWhatsappText(entry));
   const notes = state.notes.trim() ? state.notes.trim() : 'ללא';
 
   return [
@@ -372,18 +724,204 @@ function buildWhatsappMessage(entries, total) {
     `כתובת: ${BUSINESS_ADDRESS}`,
     '',
     'פריטים:',
-    ...lines,
+    ...itemLines,
     '',
     `סה"כ: ${toShekel(total)}`,
     `שעת איסוף: ${selectedPickupLabel()}`,
     '',
     `שם: ${state.name.trim()}`,
     `טלפון: ${state.phone.trim()}`,
-    `הערות: ${notes}`,
+    `הערות כלליות: ${notes}`,
   ].join('\n');
 }
 
-function sendOrderToWhatsapp() {
+function openModal(modal) {
+  modal.classList.add('show');
+  modal.removeAttribute('hidden');
+}
+
+function closeModal(modal) {
+  modal.classList.remove('show');
+  modal.setAttribute('hidden', '');
+}
+
+function buildLineEditorModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'lineEditModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lineEditTitle">
+      <h3 id="lineEditTitle">עריכת פריט</h3>
+      <div id="lineEditFields"></div>
+      <label for="lineEditNote">הערה לפריט</label>
+      <textarea id="lineEditNote" placeholder="ללא סוכר / חם מאוד / אחר..."></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="lineEditCancel">ביטול</button>
+        <button type="button" class="btn" id="lineEditSave">שמירה</button>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  ui.lineEditor.modal = modal;
+  ui.lineEditor.content = modal.querySelector('#lineEditFields');
+  ui.lineEditor.noteInput = modal.querySelector('#lineEditNote');
+  ui.lineEditor.cancelButton = modal.querySelector('#lineEditCancel');
+  ui.lineEditor.saveButton = modal.querySelector('#lineEditSave');
+
+  ui.lineEditor.cancelButton.addEventListener('click', () => closeModal(modal));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal(modal);
+  });
+}
+
+function buildConfirmModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'confirmModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card modal-card-wide" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h3 id="confirmTitle">אישור הזמנה</h3>
+      <div id="confirmContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="confirmBack">חזרה לעריכה</button>
+        <button type="button" class="btn" id="confirmSend">שליחה בוואטסאפ</button>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  ui.confirmModal.modal = modal;
+  ui.confirmModal.content = modal.querySelector('#confirmContent');
+  ui.confirmModal.backButton = modal.querySelector('#confirmBack');
+  ui.confirmModal.sendButton = modal.querySelector('#confirmSend');
+
+  ui.confirmModal.backButton.addEventListener('click', () => closeModal(modal));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal(modal);
+  });
+}
+
+function openLineEditor(lineId) {
+  const line = state.cartLines.find((entry) => entry.lineId === lineId);
+  if (!line) return;
+
+  ui.lineEditor.editingLineId = lineId;
+  ui.lineEditor.noteInput.value = line.note;
+  ui.lineEditor.content.innerHTML = '';
+
+  if (isCoffeeItem(line.itemId)) {
+    const options = normalizeCoffeeOptions(line.options);
+    ui.lineEditor.content.innerHTML = `
+      <div class="coffee-options-grid modal-options-grid">
+        <label>
+          גודל
+          <select id="lineEditSize">
+            <option value="small">קטן</option>
+            <option value="large">גדול (+₪3)</option>
+          </select>
+        </label>
+        <label>
+          חלב
+          <select id="lineEditMilk">
+            <option value="regular">רגיל</option>
+            <option value="soy">סויה (+₪2)</option>
+            <option value="oat">שיבולת (+₪2)</option>
+          </select>
+        </label>
+        <label class="coffee-check">
+          <input type="checkbox" id="lineEditShot" />
+          שוט נוסף (+₪3)
+        </label>
+        <label class="coffee-check">
+          <input type="checkbox" id="lineEditVanilla" />
+          סירופ וניל (+₪2)
+        </label>
+      </div>
+    `;
+    ui.lineEditor.content.querySelector('#lineEditSize').value = options.size;
+    ui.lineEditor.content.querySelector('#lineEditMilk').value = options.milk;
+    ui.lineEditor.content.querySelector('#lineEditShot').checked = options.extraShot;
+    ui.lineEditor.content.querySelector('#lineEditVanilla').checked = options.vanilla;
+  } else {
+    ui.lineEditor.content.innerHTML =
+      '<p class="field-hint">לפריט זה אין אפשרויות נוספות. ניתן לעדכן הערה בלבד.</p>';
+  }
+
+  openModal(ui.lineEditor.modal);
+}
+
+function saveLineEditor() {
+  const line = state.cartLines.find(
+    (entry) => entry.lineId === ui.lineEditor.editingLineId,
+  );
+  if (!line) return;
+
+  if (isCoffeeItem(line.itemId)) {
+    line.options = normalizeCoffeeOptions({
+      size: ui.lineEditor.content.querySelector('#lineEditSize')?.value,
+      milk: ui.lineEditor.content.querySelector('#lineEditMilk')?.value,
+      extraShot: ui.lineEditor.content.querySelector('#lineEditShot')?.checked,
+      vanilla: ui.lineEditor.content.querySelector('#lineEditVanilla')?.checked,
+    });
+    state.lastOptions[line.itemId] = copyOptions(line.options);
+    const menuEditor = menuNodeById(line.itemId)?.querySelector('.coffee-options');
+    if (menuEditor) {
+      menuEditor.querySelector('.coffee-size').value = line.options.size;
+      menuEditor.querySelector('.coffee-milk').value = line.options.milk;
+      menuEditor.querySelector('.coffee-shot').checked = line.options.extraShot;
+      menuEditor.querySelector('.coffee-vanilla').checked = line.options.vanilla;
+    }
+  }
+
+  line.note = ui.lineEditor.noteInput.value || '';
+  mergeDuplicateLines();
+  saveState();
+  renderCart();
+  closeModal(ui.lineEditor.modal);
+}
+
+function renderConfirmContent(entries, total) {
+  const pickup = selectedPickupLabel();
+  const customerNote = state.notes.trim() ? state.notes.trim() : 'ללא';
+  const summaryRows = entries
+    .map((line) => {
+      const unit = lineUnitPrice(line);
+      const optionBlock = line.options
+        ? `<div class="confirm-subline">${escapeHtml(optionsSummary(line))}</div>`
+        : '';
+      const noteBlock = line.note.trim()
+        ? `<div class="confirm-subline">הערה לפריט: ${escapeHtml(line.note.trim())}</div>`
+        : '';
+      return `
+        <div class="confirm-line">
+          <div>
+            <strong>${escapeHtml(line.name)}</strong>
+            <div>${line.quantity} x ${toShekel(unit)}</div>
+            ${optionBlock}
+            ${noteBlock}
+          </div>
+          <div>${toShekel(lineTotal(line))}</div>
+        </div>
+      `;
+    })
+    .join('');
+
+  ui.confirmModal.content.innerHTML = `
+    <div class="confirm-lines">${summaryRows}</div>
+    <div class="cart-summary"><span>סה"כ</span><strong>${toShekel(total)}</strong></div>
+    <div class="confirm-meta">
+      <div><strong>שעת איסוף:</strong> ${escapeHtml(pickup)}</div>
+      <div><strong>שם:</strong> ${escapeHtml(state.name.trim())}</div>
+      <div><strong>טלפון:</strong> ${escapeHtml(state.phone.trim())}</div>
+      <div><strong>הערות כלליות:</strong> ${escapeHtml(customerNote)}</div>
+    </div>
+  `;
+}
+
+function openCheckoutConfirmation() {
   formErrorElement.textContent = '';
 
   const validationError = validateOrder();
@@ -395,9 +933,24 @@ function sendOrderToWhatsapp() {
 
   const entries = buildCartEntries();
   const total = totalFromEntries(entries);
+  renderConfirmContent(entries, total);
+  openModal(ui.confirmModal.modal);
+}
+
+function sendOrderToWhatsapp() {
+  const validationError = validateOrder();
+  if (validationError) {
+    formErrorElement.textContent = validationError;
+    closeModal(ui.confirmModal.modal);
+    return;
+  }
+
+  const entries = buildCartEntries();
+  const total = totalFromEntries(entries);
   const message = buildWhatsappMessage(entries, total);
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank', 'noopener');
+  closeModal(ui.confirmModal.modal);
 }
 
 function initExistingInteractions() {
@@ -446,6 +999,15 @@ function initItems() {
     const item = parseItemData(node);
     if (!item) return;
     itemsById.set(item.id, item);
+  });
+
+  state.cartLines = state.cartLines.map((line) => sanitizeCartLine(line)).filter(Boolean);
+  mergeDuplicateLines();
+
+  itemsById.forEach((item) => {
+    if (item.isCoffee && !state.lastOptions[item.id]) {
+      state.lastOptions[item.id] = copyOptions(DEFAULT_COFFEE_OPTIONS);
+    }
     attachControlsToMenuItem(item);
   });
 }
@@ -473,19 +1035,28 @@ function bindFormEvents() {
   });
 
   clearCartButton.addEventListener('click', () => {
-    state.cart = {};
+    state.cartLines = [];
     formErrorElement.textContent = '';
     saveState();
     renderCart();
   });
 
-  sendOrderButton.addEventListener('click', sendOrderToWhatsapp);
-  mobileWhatsappButton.addEventListener('click', sendOrderToWhatsapp);
+  sendOrderButton.addEventListener('click', openCheckoutConfirmation);
+  mobileWhatsappButton.addEventListener('click', openCheckoutConfirmation);
 
   mobileCartToggle.addEventListener('click', () => {
     cartPanel.classList.toggle('open');
     renderCart();
   });
+
+  cartItemsElement.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-edit-line-id]');
+    if (!button) return;
+    openLineEditor(button.dataset.editLineId);
+  });
+
+  ui.lineEditor.saveButton.addEventListener('click', saveLineEditor);
+  ui.confirmModal.sendButton.addEventListener('click', sendOrderToWhatsapp);
 }
 
 function restoreInputs() {
@@ -496,12 +1067,15 @@ function restoreInputs() {
 
 function init() {
   restoreState();
+  buildLineEditorModal();
+  buildConfirmModal();
   initItems();
   restoreInputs();
-  populatePickupOptions();
+  refreshPickupOptions();
   bindFormEvents();
   renderCart();
   initExistingInteractions();
+  saveState();
 }
 
 init();
