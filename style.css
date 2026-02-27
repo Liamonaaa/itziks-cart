@@ -240,6 +240,22 @@ main {
   border-bottom: 1px dashed #eadfd3;
 }
 
+.menu-item-with-options {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.menu-item-with-options > span:first-child,
+.menu-item-with-options .buy-row {
+  width: 100%;
+}
+
+.menu-item-with-options .buy-row {
+  justify-content: space-between;
+  margin-top: 0;
+}
+
 .menu-item:last-child {
   border-bottom: none;
 }
@@ -516,7 +532,7 @@ footer a {
 .order-controls {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.35rem;
   border: 1px solid #f0dcc9;
   background: #fff8f1;
@@ -551,7 +567,7 @@ footer a {
   align-items: center;
   gap: 12px;
   direction: rtl;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .combo-actions {
@@ -751,22 +767,38 @@ footer a {
 
 .coffee-options {
   margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
-.coffee-options-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.4rem 0.55rem;
+.size-row,
+.milk-row,
+.addons-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
 }
 
-.coffee-options label {
+.option-label {
   font-size: 0.82rem;
   color: var(--muted);
-  display: grid;
-  gap: 0.2rem;
+  flex: 0 0 auto;
 }
 
-.coffee-options select {
+.select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 170px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.coffee-options .select {
+  flex: 1 1 auto;
+  min-width: 0;
   border: 1px solid #dfcbb6;
   border-radius: 10px;
   background: #fff;
@@ -775,10 +807,19 @@ footer a {
   font: inherit;
 }
 
+.select-arrow {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
 .coffee-check {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
 .coffee-check input {
