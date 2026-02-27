@@ -825,6 +825,87 @@ select::-ms-expand {
   flex: 1 1 170px;
   min-width: 0;
   max-width: 100%;
+  position: relative;
+}
+
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  min-height: 2.25rem;
+  border: 1px solid #dfcbb6;
+  border-radius: 999px;
+  background: #fff8f1;
+  color: var(--text);
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  direction: rtl;
+  text-align: right;
+  gap: 0.5rem;
+}
+
+.custom-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: var(--focus);
+}
+
+.custom-select.open .custom-select-trigger {
+  border-color: var(--accent-2);
+}
+
+.custom-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-select-arrow {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.custom-select-list {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  border: 1px solid #dfcbb6;
+  border-radius: 14px;
+  background: #fff8f1;
+  box-shadow: var(--shadow);
+  z-index: 25;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.custom-select-option {
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.custom-select-option:hover,
+.custom-select-option.is-active {
+  background: #f4e6d6;
+}
+
+.custom-select-option.is-selected {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .coffee-options .select {

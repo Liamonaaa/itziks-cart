@@ -39,12 +39,25 @@ const DEFAULT_COFFEE_OPTIONS = {
 };
 
 const COFFEE_LABELS = {
-  size: { small: 'קטן', large: 'גדול (+₪3)' },
+  size: { small: 'קטן', regular: 'רגיל', large: 'גדול (+₪3)' },
   milk: {
     regular: 'רגיל',
     soy: 'סויה (+₪2)',
     oat: 'שיבולת (+₪2)',
   },
+};
+
+const COFFEE_SELECT_OPTIONS = {
+  size: [
+    { value: 'small', label: 'קטן' },
+    { value: 'regular', label: 'רגיל' },
+    { value: 'large', label: 'גדול (+₪3)' },
+  ],
+  milk: [
+    { value: 'regular', label: 'רגיל' },
+    { value: 'soy', label: 'סויה (+₪2)' },
+    { value: 'oat', label: 'שיבולת (+₪2)' },
+  ],
 };
 
 const menuNodes = Array.from(document.querySelectorAll('#menu [data-item-id]'));
@@ -99,6 +112,8 @@ const ui = {
   },
 };
 
+let customSelectGlobalBound = false;
+
 function toShekel(value) {
   return `\u20AA${value}`;
 }
@@ -117,7 +132,9 @@ function isCoffeeItem(itemId) {
 
 function normalizeCoffeeOptions(options) {
   const raw = options || {};
-  const size = raw.size === 'large' ? 'large' : 'small';
+  const size = ['small', 'regular', 'large'].includes(raw.size)
+    ? raw.size
+    : 'small';
   const milk = ['regular', 'soy', 'oat'].includes(raw.milk)
     ? raw.milk
     : 'regular';
@@ -206,6 +223,235 @@ function menuNodeById(itemId) {
   return document.querySelector(`#menu [data-item-id="${itemId}"]`);
 }
 
+function customSelectMarkup({ id, inputClass, options, value }) {
+  const selectedValue = options.some((option) => option.value === value)
+    ? value
+    : options[0].value;
+  const selectedLabel =
+    options.find((option) => option.value === selectedValue)?.label || '';
+  const listId = `${id}-listbox`;
+  const triggerId = `${id}-trigger`;
+  const optionsMarkup = options
+    .map((option, index) => {
+      const isSelected = option.value === selectedValue;
+      const optionId = `${listId}-opt-${index}`;
+      return `
+        <li
+          id="${optionId}"
+          class="custom-select-option${isSelected ? ' is-selected' : ''}"
+          role="option"
+          data-value="${option.value}"
+          aria-selected="${isSelected ? 'true' : 'false'}"
+          tabindex="-1"
+        >
+          ${option.label}
+        </li>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="custom-select" data-custom-select>
+      <input type="hidden" id="${id}" class="${inputClass}" value="${selectedValue}" />
+      <button
+        type="button"
+        class="custom-select-trigger"
+        id="${triggerId}"
+        role="combobox"
+        aria-expanded="false"
+        aria-haspopup="listbox"
+        aria-controls="${listId}"
+      >
+        <span class="custom-select-value">${selectedLabel}</span>
+        <span class="custom-select-arrow" aria-hidden="true">▾</span>
+      </button>
+      <ul
+        id="${listId}"
+        class="custom-select-list"
+        role="listbox"
+        aria-labelledby="${triggerId}"
+        hidden
+      >
+        ${optionsMarkup}
+      </ul>
+    </div>
+  `;
+}
+
+function closeCustomSelect(root, focusTrigger = false) {
+  if (!root) return;
+  const trigger = root.querySelector('.custom-select-trigger');
+  const list = root.querySelector('.custom-select-list');
+  root.classList.remove('open');
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.removeAttribute('aria-activedescendant');
+  }
+  if (list) list.hidden = true;
+  if (focusTrigger && trigger) trigger.focus();
+}
+
+function openCustomSelect(root) {
+  if (!root) return;
+  document.querySelectorAll('[data-custom-select].open').forEach((node) => {
+    if (node !== root) closeCustomSelect(node);
+  });
+
+  const trigger = root.querySelector('.custom-select-trigger');
+  const list = root.querySelector('.custom-select-list');
+  root.classList.add('open');
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
+  if (list) list.hidden = false;
+}
+
+function initCustomSelect(root) {
+  if (!root || root.dataset.customSelectReady === 'true') return;
+
+  const hiddenInput = root.querySelector('input[type="hidden"]');
+  const trigger = root.querySelector('.custom-select-trigger');
+  const valueNode = root.querySelector('.custom-select-value');
+  const list = root.querySelector('.custom-select-list');
+  const optionNodes = Array.from(root.querySelectorAll('.custom-select-option'));
+  if (!hiddenInput || !trigger || !valueNode || !list || optionNodes.length === 0) {
+    return;
+  }
+
+  root.dataset.customSelectReady = 'true';
+  let activeIndex = 0;
+
+  const setActiveIndex = (nextIndex) => {
+    if (optionNodes.length === 0) return;
+    activeIndex = Math.max(0, Math.min(nextIndex, optionNodes.length - 1));
+    optionNodes.forEach((node, index) => {
+      node.classList.toggle('is-active', index === activeIndex);
+    });
+    const activeNode = optionNodes[activeIndex];
+    if (activeNode?.id) trigger.setAttribute('aria-activedescendant', activeNode.id);
+    activeNode?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const applySelection = (nextIndex, emitChange = true) => {
+    const selectedNode = optionNodes[nextIndex];
+    if (!selectedNode) return;
+    hiddenInput.value = selectedNode.dataset.value || '';
+    valueNode.textContent = selectedNode.textContent?.trim() || '';
+    optionNodes.forEach((node, index) => {
+      const selected = index === nextIndex;
+      node.setAttribute('aria-selected', selected ? 'true' : 'false');
+      node.classList.toggle('is-selected', selected);
+    });
+    setActiveIndex(nextIndex);
+    if (emitChange) {
+      hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  };
+
+  root._setCustomSelectValue = (value, emitChange = false) => {
+    const nextIndex = optionNodes.findIndex((node) => node.dataset.value === value);
+    if (nextIndex >= 0) applySelection(nextIndex, emitChange);
+  };
+
+  const initialIndex = Math.max(
+    0,
+    optionNodes.findIndex((node) => node.dataset.value === hiddenInput.value),
+  );
+  applySelection(initialIndex, false);
+  closeCustomSelect(root);
+
+  trigger.addEventListener('click', () => {
+    if (root.classList.contains('open')) {
+      closeCustomSelect(root);
+    } else {
+      openCustomSelect(root);
+      setActiveIndex(activeIndex);
+    }
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    const isOpen = root.classList.contains('open');
+    const handledKeys = ['Enter', ' ', 'ArrowDown', 'ArrowUp', 'Escape'];
+    if (handledKeys.includes(event.key)) event.preventDefault();
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (!isOpen) {
+        openCustomSelect(root);
+        setActiveIndex(activeIndex);
+      } else {
+        applySelection(activeIndex, true);
+        closeCustomSelect(root, true);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      if (!isOpen) openCustomSelect(root);
+      setActiveIndex(activeIndex + 1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      if (!isOpen) openCustomSelect(root);
+      setActiveIndex(activeIndex - 1);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      closeCustomSelect(root, true);
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      closeCustomSelect(root);
+    }
+  });
+
+  list.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+  });
+
+  list.addEventListener('mousemove', (event) => {
+    const option = event.target.closest('.custom-select-option');
+    if (!option) return;
+    const nextIndex = optionNodes.indexOf(option);
+    if (nextIndex >= 0) setActiveIndex(nextIndex);
+  });
+
+  list.addEventListener('click', (event) => {
+    const option = event.target.closest('.custom-select-option');
+    if (!option) return;
+    const nextIndex = optionNodes.indexOf(option);
+    if (nextIndex >= 0) {
+      applySelection(nextIndex, true);
+      closeCustomSelect(root, true);
+    }
+  });
+
+  if (!customSelectGlobalBound) {
+    customSelectGlobalBound = true;
+    document.addEventListener('click', (event) => {
+      document.querySelectorAll('[data-custom-select].open').forEach((node) => {
+        if (!node.contains(event.target)) closeCustomSelect(node);
+      });
+    });
+  }
+}
+
+function initCustomSelects(scope) {
+  if (!scope) return;
+  scope.querySelectorAll('[data-custom-select]').forEach((node) => initCustomSelect(node));
+}
+
+function setCustomSelectValue(inputNode, value, emitChange = false) {
+  const root = inputNode?.closest?.('[data-custom-select]');
+  if (!root) return;
+  if (typeof root._setCustomSelectValue === 'function') {
+    root._setCustomSelectValue(value, emitChange);
+    return;
+  }
+  const hiddenInput = root.querySelector('input[type="hidden"]');
+  if (hiddenInput) hiddenInput.value = value;
+}
+
 function buildCoffeeOptionsEditor(itemId) {
   const options = copyOptions(
     state.lastOptions[itemId] || DEFAULT_COFFEE_OPTIONS,
@@ -216,24 +462,25 @@ function buildCoffeeOptionsEditor(itemId) {
   wrapper.dataset.itemId = itemId;
   wrapper.innerHTML = `
     <div class="size-row">
-      <label class="option-label" for="coffee-size-${itemId}">גודל</label>
+      <label class="option-label" for="coffee-size-${itemId}-trigger">גודל</label>
       <div class="select-wrap">
-        <select id="coffee-size-${itemId}" class="coffee-size select">
-          <option value="small">קטן</option>
-          <option value="large">גדול (+₪3)</option>
-        </select>
-        <span class="select-arrow" aria-hidden="true">▾</span>
+        ${customSelectMarkup({
+          id: `coffee-size-${itemId}`,
+          inputClass: 'coffee-size',
+          options: COFFEE_SELECT_OPTIONS.size,
+          value: options.size,
+        })}
       </div>
     </div>
     <div class="milk-row">
-      <label class="option-label" for="coffee-milk-${itemId}">חלב</label>
+      <label class="option-label" for="coffee-milk-${itemId}-trigger">חלב</label>
       <div class="select-wrap">
-        <select id="coffee-milk-${itemId}" class="coffee-milk select">
-          <option value="regular">רגיל</option>
-          <option value="soy">סויה (+₪2)</option>
-          <option value="oat">שיבולת (+₪2)</option>
-        </select>
-        <span class="select-arrow" aria-hidden="true">▾</span>
+        ${customSelectMarkup({
+          id: `coffee-milk-${itemId}`,
+          inputClass: 'coffee-milk',
+          options: COFFEE_SELECT_OPTIONS.milk,
+          value: options.milk,
+        })}
       </div>
     </div>
     <div class="addons-row">
@@ -248,14 +495,11 @@ function buildCoffeeOptionsEditor(itemId) {
     </div>
   `;
 
-  const sizeSelect = wrapper.querySelector('.coffee-size');
-  const milkSelect = wrapper.querySelector('.coffee-milk');
   const shotCheckbox = wrapper.querySelector('.coffee-shot');
   const vanillaCheckbox = wrapper.querySelector('.coffee-vanilla');
-  sizeSelect.value = options.size;
-  milkSelect.value = options.milk;
   shotCheckbox.checked = options.extraShot;
   vanillaCheckbox.checked = options.vanilla;
+  initCustomSelects(wrapper);
 
   wrapper.addEventListener('change', () => {
     state.lastOptions[itemId] = readCoffeeOptionsFromMenu(itemId);
@@ -867,22 +1111,23 @@ function openLineEditor(lineId) {
         <label>
           גודל
           <div class="select-wrap">
-            <select id="lineEditSize" class="select">
-              <option value="small">קטן</option>
-              <option value="large">גדול (+₪3)</option>
-            </select>
-            <span class="select-arrow" aria-hidden="true">▾</span>
+            ${customSelectMarkup({
+              id: 'lineEditSize',
+              inputClass: 'select',
+              options: COFFEE_SELECT_OPTIONS.size,
+              value: options.size,
+            })}
           </div>
         </label>
         <label>
           חלב
           <div class="select-wrap">
-            <select id="lineEditMilk" class="select">
-              <option value="regular">רגיל</option>
-              <option value="soy">סויה (+₪2)</option>
-              <option value="oat">שיבולת (+₪2)</option>
-            </select>
-            <span class="select-arrow" aria-hidden="true">▾</span>
+            ${customSelectMarkup({
+              id: 'lineEditMilk',
+              inputClass: 'select',
+              options: COFFEE_SELECT_OPTIONS.milk,
+              value: options.milk,
+            })}
           </div>
         </label>
         <label class="coffee-check">
@@ -895,8 +1140,7 @@ function openLineEditor(lineId) {
         </label>
       </div>
     `;
-    ui.lineEditor.content.querySelector('#lineEditSize').value = options.size;
-    ui.lineEditor.content.querySelector('#lineEditMilk').value = options.milk;
+    initCustomSelects(ui.lineEditor.content);
     ui.lineEditor.content.querySelector('#lineEditShot').checked = options.extraShot;
     ui.lineEditor.content.querySelector('#lineEditVanilla').checked = options.vanilla;
   } else {
@@ -923,8 +1167,8 @@ function saveLineEditor() {
     state.lastOptions[line.itemId] = copyOptions(line.options);
     const menuEditor = menuNodeById(line.itemId)?.querySelector('.coffee-options');
     if (menuEditor) {
-      menuEditor.querySelector('.coffee-size').value = line.options.size;
-      menuEditor.querySelector('.coffee-milk').value = line.options.milk;
+      setCustomSelectValue(menuEditor.querySelector('.coffee-size'), line.options.size);
+      setCustomSelectValue(menuEditor.querySelector('.coffee-milk'), line.options.milk);
       menuEditor.querySelector('.coffee-shot').checked = line.options.extraShot;
       menuEditor.querySelector('.coffee-vanilla').checked = line.options.vanilla;
       updateMenuItemPrice(line.itemId);
