@@ -313,6 +313,14 @@
         margin-bottom: 0.4rem;
       }
 
+      .gallery-tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: inherit;
+        display: block;
+      }
+
       .reviews {
         display: grid;
         gap: 1rem;
@@ -755,64 +763,48 @@
 
       <section aria-labelledby="gallery-title">
         <h2 id="gallery-title" class="section-title">גלריה</h2>
-        <div class="gallery-grid">
+                <div class="gallery-grid">
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <path
-                d="M18 24h28v16a10 10 0 0 1-10 10H28a10 10 0 0 1-10-10V24z"
-                fill="#d9b190"
-              />
-              <path
-                d="M46 26h6a6 6 0 0 1 0 12h-6"
-                fill="none"
-                stroke="#8b5a2b"
-                stroke-width="3"
-              />
-            </svg>
-            כוס קפה
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/6/6f/Croissant_and_orange_juice.jpg"
+              alt="מאפים וקפה בעגלת הקפה של איציק"
+              loading="lazy"
+            />
           </div>
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <circle cx="32" cy="32" r="18" fill="#f0d3b5" />
-              <path
-                d="M20 30c6 8 18 8 24 0"
-                stroke="#8b5a2b"
-                stroke-width="3"
-                fill="none"
-              />
-            </svg>
-            קצף עשיר
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/4/45/Coffee_and_croissant.jpg"
+              alt="קפה וקרואסון טריים"
+              loading="lazy"
+            />
           </div>
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <ellipse cx="26" cy="34" rx="10" ry="14" fill="#b27a4a" />
-              <ellipse cx="40" cy="30" rx="10" ry="14" fill="#8b5a2b" />
-            </svg>
-            פולים טריים
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/3/36/Coffee_and_pastries_on_table.jpg"
+              alt="שולחן מאפים וקפה בעגלה"
+              loading="lazy"
+            />
           </div>
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <rect x="18" y="18" width="28" height="28" rx="6" fill="#d08c4a" />
-              <path d="M22 30h20" stroke="#fff" stroke-width="3" />
-            </svg>
-            מתוקים
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/6/6f/Croissant_and_orange_juice.jpg"
+              alt="מאפים וקפה בעגלת הקפה של איציק"
+              loading="lazy"
+            />
           </div>
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <path d="M20 40h24l-4 10H24l-4-10z" fill="#cfa173" />
-              <path d="M24 20h16l4 14H20l4-14z" fill="#e2c3a4" />
-            </svg>
-            כריכים
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/4/45/Coffee_and_croissant.jpg"
+              alt="קפה וקרואסון טריים"
+              loading="lazy"
+            />
           </div>
           <div class="gallery-tile">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <path
-                d="M20 24h24v18a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V24z"
-                fill="#e6c7a9"
-              />
-              <path d="M22 20h20" stroke="#8b5a2b" stroke-width="3" />
-            </svg>
-            לשתייה לקחת
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/3/36/Coffee_and_pastries_on_table.jpg"
+              alt="שולחן מאפים וקפה בעגלה"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>
@@ -967,3 +959,4 @@
     </script>
   </body>
 </html>
+
