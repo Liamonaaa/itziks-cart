@@ -61,6 +61,88 @@ const COFFEE_SELECT_OPTIONS = {
 };
 
 const menuNodes = Array.from(document.querySelectorAll('#menu [data-item-id]'));
+const MENU_ITEM_IMAGE_MAP = {
+  espresso: {
+    src: './assets/menu/espresso.png',
+    alt: 'אספרסו בעגלת הקפה של איציק',
+  },
+  'double-espresso': {
+    src: './assets/menu/espresso-double.png',
+    alt: 'אספרסו כפול בעגלת הקפה של איציק',
+  },
+  americano: {
+    src: './assets/menu/americano.png',
+    alt: 'אמריקנו בעגלת הקפה של איציק',
+  },
+  cappuccino: {
+    src: './assets/menu/cappuccino.png',
+    alt: 'קפוצ׳ינו בעגלת הקפה של איציק',
+  },
+  latte: {
+    src: './assets/menu/latte.png',
+    alt: 'לאטה בעגלת הקפה של איציק',
+  },
+  mocha: {
+    src: './assets/menu/mocha.png',
+    alt: 'מוקה בעגלת הקפה של איציק',
+  },
+  'iced-americano': {
+    src: './assets/menu/iced-americano.png',
+    alt: 'אייס אמריקנו בעגלת הקפה של איציק',
+  },
+  'iced-latte': {
+    src: './assets/menu/iced-latte.png',
+    alt: 'אייס לאטה בעגלת הקפה של איציק',
+  },
+  'iced-mocha': {
+    src: './assets/menu/iced-mocha.png',
+    alt: 'אייס מוקה בעגלת הקפה של איציק',
+  },
+  'green-tea': {
+    src: './assets/menu/green-tea.png',
+    alt: 'תה ירוק בעגלת הקפה של איציק',
+  },
+  'mint-tea': {
+    src: './assets/menu/mint-tea.png',
+    alt: 'תה נענע בעגלת הקפה של איציק',
+  },
+  chamomile: {
+    src: './assets/menu/chamomile.png',
+    alt: 'תה קמומיל בעגלת הקפה של איציק',
+  },
+  'butter-croissant': {
+    src: './assets/menu/croissant-butter.png',
+    alt: 'קרואסון חמאה בעגלת הקפה של איציק',
+  },
+  'chocolate-croissant': {
+    src: './assets/menu/croissant-chocolate.png',
+    alt: 'קרואסון שוקולד בעגלת הקפה של איציק',
+  },
+  'choco-chip-cookie': {
+    src: './assets/menu/cookie.png',
+    alt: 'עוגיית שוקולד צ׳יפס בעגלת הקפה של איציק',
+  },
+  brownie: {
+    src: './assets/menu/brownies.png',
+    alt: 'בראוניז בעגלת הקפה של איציק',
+  },
+  'cheese-toast': {
+    src: './assets/menu/toast-cheese.png',
+    alt: 'טוסט גבינה בעגלת הקפה של איציק',
+  },
+  'small-sandwich': {
+    src: './assets/menu/sandwich.png',
+    alt: 'כריך קטן בעגלת הקפה של איציק',
+  },
+  'morning-combo': {
+    src: './assets/menu/combo-morning.png',
+    alt: 'קומבו בוקר בעגלת הקפה של איציק',
+  },
+  'neighborhood-combo': {
+    src: './assets/menu/combo-neighborhood.png',
+    alt: 'קומבו שכונתי בעגלת הקפה של איציק',
+  },
+};
 const itemsById = new Map();
 const menuItemPricing = new Map();
 
@@ -221,6 +303,26 @@ function createLineId() {
 
 function menuNodeById(itemId) {
   return document.querySelector(`#menu [data-item-id="${itemId}"]`);
+}
+
+function applyMenuItemImages() {
+  menuNodes.forEach((node) => {
+    const itemId = node.dataset.itemId;
+    const image = MENU_ITEM_IMAGE_MAP[itemId];
+    if (!image) return;
+
+    const existingImages = Array.from(node.querySelectorAll(':scope > .item-img'));
+    const itemImage = existingImages[0] || document.createElement('img');
+    if (!existingImages[0]) {
+      itemImage.className = 'item-img';
+      node.prepend(itemImage);
+    }
+    existingImages.slice(1).forEach((img) => img.remove());
+
+    itemImage.src = image.src;
+    itemImage.alt = image.alt;
+    itemImage.loading = 'lazy';
+  });
 }
 
 function customSelectMarkup({ id, inputClass, options, value }) {
@@ -1294,6 +1396,8 @@ function initExistingInteractions() {
 }
 
 function initItems() {
+  applyMenuItemImages();
+
   menuNodes.forEach((node) => {
     const item = parseItemData(node);
     if (!item) return;
