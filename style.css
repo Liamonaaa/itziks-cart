@@ -234,6 +234,7 @@ main {
 .menu-item {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   padding: 0.6rem 0;
   border-bottom: 1px dashed #eadfd3;
@@ -250,6 +251,10 @@ main {
 .menu-item .desc {
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.menu-item > span:first-child {
+  min-width: 0;
 }
 
 .price {
@@ -509,8 +514,9 @@ footer a {
 }
 
 .order-controls {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 0.35rem;
   border: 1px solid #f0dcc9;
   background: #fff8f1;
@@ -540,13 +546,25 @@ footer a {
 
 .menu-item-actions,
 .combo-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   gap: 0.65rem;
+  min-width: 9rem;
+  white-space: nowrap;
 }
 
 .combo-actions {
   margin-top: 0.6rem;
+}
+
+.menu-item-actions .price,
+.combo-actions .price {
+  display: inline-block;
+  min-width: 3.3rem;
+  text-align: center;
 }
 
 .cart-panel {
