@@ -75,7 +75,9 @@ const cartTotalInline = document.getElementById('cartTotalInline');
 const clearCartButton = document.getElementById('clearCartBtn');
 const sendOrderButton = document.getElementById('sendOrderBtn');
 const mobileCartToggle = document.getElementById('mobileCartToggle');
-const mobileWhatsappButton = document.getElementById('mobileWhatsappBtn');
+const mobileCartTotal = document.getElementById('mobileCartTotal');
+const mobileCartCount = document.getElementById('mobileCartCount');
+const mobileCartBackdrop = document.getElementById('mobileCartBackdrop');
 
 const pickupSelect = document.getElementById('pickupTime');
 const pickupHint = document.getElementById('pickupHint');
@@ -118,9 +120,64 @@ const ui = {
 let customSelectGlobalBound = false;
 let toastTimeoutId = null;
 const defaultToastMessage = toast?.textContent || '';
+const MOBILE_BREAKPOINT = 900;
+const mobileViewportQuery = window.matchMedia(
+  `(max-width: ${MOBILE_BREAKPOINT}px)`,
+);
 
 function toShekel(value) {
   return `\u20AA${value}`;
+}
+
+function isMobileViewport() {
+  return mobileViewportQuery.matches;
+}
+
+function closeMobileCart() {
+  if (!isMobileViewport()) return;
+  cartPanel.classList.remove('open');
+  cartPanel.setAttribute('aria-hidden', 'true');
+  mobileCartToggle?.setAttribute('aria-expanded', 'false');
+  if (mobileCartBackdrop) {
+    mobileCartBackdrop.classList.remove('show');
+    mobileCartBackdrop.hidden = true;
+  }
+  document.body.classList.remove('mobile-cart-open');
+}
+
+function openMobileCart() {
+  if (!isMobileViewport()) return;
+  cartPanel.classList.add('open');
+  cartPanel.setAttribute('aria-hidden', 'false');
+  mobileCartToggle?.setAttribute('aria-expanded', 'true');
+  if (mobileCartBackdrop) {
+    mobileCartBackdrop.hidden = false;
+    mobileCartBackdrop.classList.add('show');
+  }
+  document.body.classList.add('mobile-cart-open');
+}
+
+function syncMobileCartLayout() {
+  if (isMobileViewport()) {
+    cartPanel.setAttribute(
+      'aria-hidden',
+      cartPanel.classList.contains('open') ? 'false' : 'true',
+    );
+    mobileCartToggle?.setAttribute(
+      'aria-expanded',
+      cartPanel.classList.contains('open') ? 'true' : 'false',
+    );
+    return;
+  }
+
+  cartPanel.classList.remove('open');
+  cartPanel.removeAttribute('aria-hidden');
+  mobileCartToggle?.setAttribute('aria-expanded', 'false');
+  if (mobileCartBackdrop) {
+    mobileCartBackdrop.classList.remove('show');
+    mobileCartBackdrop.hidden = true;
+  }
+  document.body.classList.remove('mobile-cart-open');
 }
 
 function showToast(message, timeoutMs = 2000) {
@@ -752,6 +809,7 @@ function renderCart() {
   const entries = buildCartEntries();
   state.cartLines = entries;
   const total = totalFromEntries(entries);
+  const itemCount = entries.reduce((sum, entry) => sum + entry.quantity, 0);
 
   menuNodes.forEach((node) => {
     const itemId = node.dataset.itemId;
@@ -793,7 +851,16 @@ function renderCart() {
   const mobilePrefix = cartPanel.classList.contains('open')
     ? 'סגור עגלה'
     : 'פתח עגלה';
-  mobileCartToggle.textContent = `${mobilePrefix} (${totalLabel})`;
+  if (mobileCartTotal && mobileCartCount && mobileCartToggle) {
+    mobileCartTotal.textContent = totalLabel;
+    mobileCartCount.textContent = String(itemCount);
+    mobileCartToggle.setAttribute(
+      'aria-label',
+      `עגלה: ${itemCount} פריטים, ${totalLabel}`,
+    );
+  } else {
+    mobileCartToggle.textContent = `${mobilePrefix} (${totalLabel})`;
+  }
 }
 
 function serializeState() {
@@ -969,7 +1036,6 @@ function refreshPickupOptions() {
   }
 
   sendOrderButton.disabled = !canCheckout;
-  mobileWhatsappButton.disabled = !canCheckout;
   saveState();
 }
 
@@ -1310,13 +1376,14 @@ function openCheckoutConfirmation() {
   const validationError = validateOrder();
   if (validationError) {
     formErrorElement.textContent = validationError;
-    cartPanel.classList.add('open');
+    openMobileCart();
     return;
   }
 
   const entries = buildCartEntries();
   const total = totalFromEntries(entries);
   renderConfirmContent(entries, total);
+  closeMobileCart();
   openModal(ui.confirmModal.modal);
 }
 
@@ -1325,6 +1392,7 @@ async function sendOrderToWhatsapp() {
   if (validationError) {
     formErrorElement.textContent = validationError;
     closeModal(ui.confirmModal.modal);
+    openMobileCart();
     return;
   }
 
@@ -1361,7 +1429,6 @@ async function sendOrderToWhatsapp() {
   ui.confirmModal.sendButton.disabled = true;
   ui.confirmModal.backButton.disabled = true;
   sendOrderButton.disabled = true;
-  mobileWhatsappButton.disabled = true;
 
   try {
     await saveOrderToFirestore(orderPayload);
@@ -1379,7 +1446,7 @@ async function sendOrderToWhatsapp() {
     const firebaseMessage = error?.message || 'Unknown Firebase error';
     const warningMessage = `נשלח בוואטסאפ בלבד — שגיאת Firebase: ${firebaseMessage}`;
     closeModal(ui.confirmModal.modal);
-    cartPanel.classList.add('open');
+    openMobileCart();
     showWhatsappFallback(warningMessage);
     showToast(warningMessage, 4000);
   } finally {
@@ -1473,11 +1540,19 @@ function bindFormEvents() {
   });
 
   sendOrderButton.addEventListener('click', openCheckoutConfirmation);
-  mobileWhatsappButton.addEventListener('click', openCheckoutConfirmation);
 
   mobileCartToggle.addEventListener('click', () => {
-    cartPanel.classList.toggle('open');
-    renderCart();
+    if (cartPanel.classList.contains('open')) {
+      closeMobileCart();
+    } else {
+      openMobileCart();
+    }
+  });
+  mobileCartBackdrop?.addEventListener('click', closeMobileCart);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && cartPanel.classList.contains('open')) {
+      closeMobileCart();
+    }
   });
 
   cartItemsElement.addEventListener('click', (event) => {
@@ -1503,6 +1578,12 @@ function init() {
   initItems();
   restoreInputs();
   refreshPickupOptions();
+  syncMobileCartLayout();
+  if (typeof mobileViewportQuery.addEventListener === 'function') {
+    mobileViewportQuery.addEventListener('change', syncMobileCartLayout);
+  } else if (typeof mobileViewportQuery.addListener === 'function') {
+    mobileViewportQuery.addListener(syncMobileCartLayout);
+  }
   bindFormEvents();
   renderCart();
   initExistingInteractions();

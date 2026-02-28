@@ -472,8 +472,51 @@ footer a {
   z-index: 35;
 }
 
-.mobile-cta .btn {
-  flex: 1;
+.mobile-cart-btn {
+  width: 100%;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 46px;
+}
+
+.mobile-cart-label {
+  font-weight: 700;
+}
+
+.mobile-cart-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.mobile-cart-badge {
+  min-width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 0.35rem;
+}
+
+.mobile-cart-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 32, 24, 0.42);
+  z-index: 44;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-cart-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .meta-row {
@@ -516,13 +559,15 @@ footer a {
     padding: 0.45rem 0.85rem;
     font-size: 0.9rem;
   }
+}
 
+@media (max-width: 900px) {
   .mobile-cta {
     display: flex;
   }
 
   footer {
-    padding-bottom: 6.5rem;
+    padding-bottom: 7rem;
   }
 }
 /* הזמנה אינטראקטיבית */
@@ -773,18 +818,19 @@ select::-ms-expand {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .cart-panel {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 4.6rem;
+    bottom: calc(4.7rem + env(safe-area-inset-bottom));
     z-index: 45;
-    border-radius: 16px 16px 0 0;
-    max-height: 72vh;
+    border-radius: 18px 18px 0 0;
+    max-height: min(78vh, calc(100dvh - 7.4rem));
     overflow: auto;
     transform: translateY(115%);
     transition: transform 0.2s ease;
+    box-shadow: 0 -10px 30px rgba(43, 32, 24, 0.24);
   }
 
   .cart-panel.open {
@@ -795,12 +841,12 @@ select::-ms-expand {
     display: flex;
   }
 
-  .mobile-cta .btn {
-    min-height: 44px;
+  body.mobile-cart-open {
+    overflow: hidden;
   }
 
   footer {
-    padding-bottom: 8.2rem;
+    padding-bottom: 8.4rem;
   }
 }
 

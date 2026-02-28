@@ -631,12 +631,22 @@
       המספר הועתק
     </div>
 
-    <div class="mobile-cta" aria-label="כפתורי פעולה מהירים">
-      <button class="btn secondary" id="mobileCartToggle" type="button">
-        פתח עגלה (₪0)
+    <div class="mobile-cta" aria-label="עגלה בנייד">
+      <button
+        class="btn secondary mobile-cart-btn"
+        id="mobileCartToggle"
+        type="button"
+        aria-controls="cartPanel"
+        aria-expanded="false"
+      >
+        <span class="mobile-cart-label">עגלה</span>
+        <span class="mobile-cart-meta">
+          <span id="mobileCartTotal">₪0</span>
+          <span class="mobile-cart-badge" id="mobileCartCount">0</span>
+        </span>
       </button>
-      <button class="btn" id="mobileWhatsappBtn" type="button">שלח הזמנה</button>
     </div>
+    <div class="mobile-cart-backdrop" id="mobileCartBackdrop" hidden></div>
 
     <script type="module" src="./main.js"></script>
   </body>
