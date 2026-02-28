@@ -1,6 +1,6 @@
 // עריכת וואטסאפ: עדכנו כאן את מספר היעד
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-import { db, isFirebaseConfigured } from './firebase.js';
+import { db } from './firebase.js';
 
 const WHATSAPP_NUMBER = '972500000000';
 
@@ -1102,11 +1102,9 @@ function buildFirestoreOrderPayload(entries, total) {
 }
 
 async function saveOrderToFirestore(payload) {
-  if (!db || !isFirebaseConfigured) {
-    throw new Error('FIREBASE_NOT_CONFIGURED');
-  }
-
-  await addDoc(collection(db, 'orders'), payload);
+  const docRef = await addDoc(collection(db, 'orders'), payload);
+  console.log('Order saved to Firestore with id:', docRef.id);
+  return docRef;
 }
 
 function openModal(modal) {
@@ -1339,12 +1337,16 @@ async function sendOrderToWhatsapp() {
   try {
     await saveOrderToFirestore(orderPayload);
     formErrorElement.textContent = '';
-    showToast('ההזמנה נשלחה ✅');
+    showToast('ההזמנה נשמרה ונשלחה ✅');
   } catch (error) {
-    console.error('Failed to save order to Firestore', error);
-    warningMessage = isFirebaseConfigured
-      ? 'ההזמנה נשלחה בוואטסאפ, אבל לא נשמרה במערכת.'
-      : 'ההזמנה נשלחה בוואטסאפ בלבד (חסר חיבור Firebase).';
+    console.error('Failed to save order to Firestore', {
+      error,
+      message: error?.message,
+      stack: error?.stack,
+      payload: orderPayload,
+    });
+    const firebaseMessage = error?.message || 'Unknown Firebase error';
+    warningMessage = `נשלח בוואטסאפ בלבד — שגיאת Firebase: ${firebaseMessage}`;
     formErrorElement.textContent = warningMessage;
     showToast(warningMessage, 3200);
   } finally {

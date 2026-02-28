@@ -6,7 +6,7 @@ import {
   query,
   updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-import { db, isFirebaseConfigured } from './src/firebase.js';
+import { db } from './src/firebase.js';
 
 const ADMIN_PIN = '1234';
 const SESSION_KEY = 'itziks-admin-pin-ok';
@@ -319,7 +319,7 @@ async function requestNotificationPermission() {
 }
 
 function startRealtimeOrders() {
-  if (!db || !isFirebaseConfigured) {
+  if (!db) {
     ordersList.innerHTML =
       '<article class="order-card"><strong>Firebase לא מוגדר.</strong><p>עדכנו את <code>src/firebase.js</code> עם פרטי הפרויקט.</p></article>';
     emptyState.hidden = true;
