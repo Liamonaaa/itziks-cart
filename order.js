@@ -2,6 +2,8 @@ import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.2/fire
 import { db } from './src/firebase.js';
 
 const STATUS_FLOW = ['new', 'in_progress', 'ready', 'delivered'];
+const DELIVERED_STATUS = 'delivered';
+const DELIVERED_DISMISS_PREFIX = 'deliveredDismissed_';
 const STATUS_META = {
   new: { label: 'חדש', className: 'new' },
   in_progress: { label: 'בהכנה', className: 'in_progress' },
@@ -25,9 +27,13 @@ const ui = {
   customerNotes: document.getElementById('customerNotes'),
   orderItems: document.getElementById('orderItems'),
   orderTotal: document.getElementById('orderTotal'),
+  deliveredBanner: document.getElementById('deliveredBanner'),
+  dismissDeliveredBannerBtn: document.getElementById('dismissDeliveredBannerBtn'),
 };
 
 let unsubscribeOrder = null;
+let currentOrderId = '';
+let lastStatus = null;
 
 const shekelFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -100,6 +106,72 @@ function formatModifiers(modifiers) {
   return lines;
 }
 
+function deliveredDismissKey(orderId) {
+  return `${DELIVERED_DISMISS_PREFIX}${orderId}`;
+}
+
+function isDeliveredDismissed(orderId) {
+  try {
+    return localStorage.getItem(deliveredDismissKey(orderId)) === 'true';
+  } catch (error) {
+    console.error('Failed to read delivered dismiss state', error);
+    return false;
+  }
+}
+
+function setDeliveredDismissed(orderId) {
+  if (!orderId) return;
+  try {
+    localStorage.setItem(deliveredDismissKey(orderId), 'true');
+  } catch (error) {
+    console.error('Failed to store delivered dismiss state', error);
+  }
+}
+
+function showDeliveredBanner() {
+  if (!ui.deliveredBanner) return;
+  ui.deliveredBanner.hidden = false;
+  requestAnimationFrame(() => {
+    ui.deliveredBanner.classList.add('show');
+  });
+  document.body.classList.add('delivered-banner-open');
+}
+
+function hideDeliveredBanner() {
+  if (!ui.deliveredBanner) return;
+  ui.deliveredBanner.classList.remove('show');
+  document.body.classList.remove('delivered-banner-open');
+  window.setTimeout(() => {
+    if (!ui.deliveredBanner.classList.contains('show')) {
+      ui.deliveredBanner.hidden = true;
+    }
+  }, 230);
+}
+
+function syncDeliveredNotice(orderId, status) {
+  if (!ui.deliveredBanner) {
+    lastStatus = status;
+    return;
+  }
+
+  const isDelivered = status === DELIVERED_STATUS;
+  const wasDelivered = lastStatus === DELIVERED_STATUS;
+  const transitionedToDelivered = !wasDelivered && isDelivered;
+  const dismissed = isDeliveredDismissed(orderId);
+
+  if (isDelivered && !dismissed) {
+    if (transitionedToDelivered || ui.deliveredBanner.hidden) {
+      showDeliveredBanner();
+    }
+  } else if (isDelivered && dismissed) {
+    hideDeliveredBanner();
+  } else if (!isDelivered) {
+    hideDeliveredBanner();
+  }
+
+  lastStatus = status;
+}
+
 function renderTimeline(status) {
   if (!ui.statusTimeline) return;
   const stepElements = Array.from(ui.statusTimeline.querySelectorAll('li'));
@@ -162,6 +234,7 @@ function showNotFound(message) {
   ui.loadingCard.hidden = true;
   ui.orderContent.hidden = true;
   ui.notFoundCard.hidden = false;
+  hideDeliveredBanner();
   if (message) {
     ui.notFoundMessage.textContent = message;
   } else {
@@ -178,6 +251,7 @@ function showOrderContent() {
 function renderOrder(orderId, orderData) {
   const status = typeof orderData.status === 'string' ? orderData.status : 'new';
   const statusMeta = STATUS_META[status] || STATUS_META.new;
+  syncDeliveredNotice(orderId, status);
 
   ui.orderNumber.textContent = `#${shortOrderNumber(orderId)}`;
   ui.orderStatusBadge.textContent = statusMeta.label;
@@ -199,6 +273,16 @@ function initOrderPage() {
   if (!orderId) {
     showNotFound('הזמנה לא נמצאה');
     return;
+  }
+
+  currentOrderId = orderId;
+  lastStatus = null;
+
+  if (ui.dismissDeliveredBannerBtn) {
+    ui.dismissDeliveredBannerBtn.addEventListener('click', () => {
+      setDeliveredDismissed(currentOrderId);
+      hideDeliveredBanner();
+    });
   }
 
   if (!db) {

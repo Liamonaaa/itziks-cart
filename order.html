@@ -11,9 +11,19 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./order.css?v=20260228-1" />
+    <link rel="stylesheet" href="./order.css?v=20260228-2" />
   </head>
   <body>
+    <div class="delivered-banner" id="deliveredBanner" hidden>
+      <div class="delivered-banner-inner">
+        <div class="delivered-banner-text">
+          <strong>ההזמנה נמסרה ✅</strong>
+          <p>בתיאבון! אם משהו לא הסתדר — דברו איתנו.</p>
+        </div>
+        <button id="dismissDeliveredBannerBtn" type="button">סגור</button>
+      </div>
+    </div>
+
     <main class="order-page">
       <header class="order-top">
         <div>
@@ -83,6 +93,6 @@
       </section>
     </main>
 
-    <script type="module" src="./order.js?v=20260228-1"></script>
+    <script type="module" src="./order.js?v=20260228-2"></script>
   </body>
 </html>
