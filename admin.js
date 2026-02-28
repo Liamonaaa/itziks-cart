@@ -1,6 +1,6 @@
+import { db, isFirebaseConfigured } from './src/firebase.js';
 const FIRESTORE_MODULE_URL =
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-const FIREBASE_CONFIG_MODULE_URL = './src/firebase.js';
 
 const ADMIN_PIN = '1234';
 const SESSION_KEY = 'itziks-admin-pin-ok';
@@ -40,7 +40,6 @@ let initializedSnapshot = false;
 let audioContext = null;
 let unsubscribeOrders = null;
 let firestoreApi = null;
-let db = null;
 let firebaseInitPromise = null;
 
 function showToast(message, timeoutMs = 2600) {
@@ -88,16 +87,20 @@ async function ensureFirebaseReady() {
   if (firestoreApi && db) return { firestoreApi, db };
 
   if (!firebaseInitPromise) {
-    firebaseInitPromise = Promise.all([
-      import(FIRESTORE_MODULE_URL),
-      import(FIREBASE_CONFIG_MODULE_URL),
-    ])
-      .then(([firestoreModule, firebaseModule]) => {
+    firebaseInitPromise = import(FIRESTORE_MODULE_URL)
+      .then((firestoreModule) => {
         firestoreApi = firestoreModule;
-        db = firebaseModule?.db || null;
+
         if (!db) {
-          throw new Error('Firestore DB was not initialized.');
+          throw new Error('Firestore db import failed from ./src/firebase.js');
         }
+
+        if (!isFirebaseConfigured) {
+          console.warn(
+            'Firebase config may be incomplete in ./src/firebase.js, but continuing because db exists.',
+          );
+        }
+
         return { firestoreApi, db };
       })
       .catch((error) => {
@@ -377,10 +380,11 @@ async function startRealtimeOrders() {
     firebaseRuntime = await ensureFirebaseReady();
   } catch (error) {
     console.error('Failed to initialize Firebase for admin dashboard', error);
+    const errorMessage = error?.message || 'Unknown Firebase error';
     ordersList.innerHTML =
-      '<article class="order-card"><strong>שגיאת Firebase.</strong><p>לא ניתן להתחבר ל-Firestore. בדקו קונסול.</p></article>';
+      `<article class="order-card"><strong>שגיאת Firebase.</strong><p>${escapeHtml(errorMessage)}</p></article>`;
     emptyState.hidden = true;
-    showToast('שגיאת Firebase בלוח המנהל');
+    showToast(`שגיאת Firebase: ${errorMessage}`, 3800);
     return;
   }
 

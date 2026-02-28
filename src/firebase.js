@@ -11,7 +11,14 @@ const firebaseConfig = {
   measurementId: 'G-8Z6KCK64E0',
 };
 
+const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId,
+);
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-export { db };
+export { db, isFirebaseConfigured };
