@@ -202,6 +202,26 @@ button:disabled {
   margin-top: 0.2rem;
 }
 
+.delivery-filter-row {
+  margin-bottom: 0.95rem;
+}
+
+.delivery-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.45rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.delivery-filter-toggle input {
+  accent-color: var(--accent);
+}
+
 .orders-list {
   display: grid;
   gap: 0.85rem;
@@ -280,6 +300,42 @@ body.selection-mode .order-select-control {
 .status-pill.cancelled {
   background: #fae1e1;
   color: #8f1e1e;
+}
+
+.status-pill.delivered-confirmed {
+  background: #deefe6;
+  color: #136e3c;
+}
+
+.status-pill.delivered-pending {
+  background: #ececec;
+  color: #444;
+}
+
+.status-pill.delivered-denied {
+  background: #fae1e1;
+  color: #8f1e1e;
+}
+
+.status-subtext {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.status-subtext.delivered-denied {
+  color: #8f1e1e;
+  font-weight: 500;
+}
+
+.delivery-alert {
+  margin: 0.25rem 0 0.65rem;
+  border: 1px solid #f0bcbc;
+  background: #fde9e9;
+  color: #8f1e1e;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  font-weight: 600;
+  font-size: 0.93rem;
 }
 
 .order-meta {

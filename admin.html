@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./admin.css?v=20260228-5" />
+    <link rel="stylesheet" href="./admin.css?v=20260228-6" />
   </head>
   <body>
     <div class="pin-gate" id="pinGate">
@@ -56,6 +56,13 @@
           <span>מוכן</span>
           <strong id="countReady">0</strong>
         </article>
+      </section>
+
+      <section class="delivery-filter-row">
+        <label class="delivery-filter-toggle" for="onlyDeniedDeliveryToggle">
+          <input id="onlyDeniedDeliveryToggle" type="checkbox" />
+          <span>הראה רק לקוחות שסימנו לא נמסר</span>
+        </label>
       </section>
 
       <section class="selection-toolbar" id="selectionToolbar" hidden>
@@ -137,6 +144,6 @@
 
     <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./admin.js?v=20260228-5"></script>
+    <script type="module" src="./admin.js?v=20260228-6"></script>
   </body>
 </html>

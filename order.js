@@ -1,4 +1,10 @@
-import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  updateDoc,
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import { db } from './src/firebase.js';
 
 const WHATSAPP_NUMBER = '972500000000';
@@ -41,10 +47,13 @@ const ui = {
 
 let unsubscribeOrder = null;
 let currentOrderId = '';
+let currentOrderRef = null;
+let currentOrderData = null;
 let isDeliveredModalOpen = false;
 let lastFocusedBeforeModal = null;
 let modalLockedScrollY = 0;
 let toastTimer = null;
+let decisionInFlight = false;
 
 const shekelFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -146,12 +155,33 @@ function setStoredFlag(key) {
   }
 }
 
+function removeStoredFlag(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.error('Failed to remove localStorage flag', error);
+  }
+}
+
 function isDeliveredConfirmed(orderId) {
   return getStoredFlag(deliveredConfirmedKey(orderId));
 }
 
 function isDeliveredDenied(orderId) {
   return getStoredFlag(deliveredDeniedKey(orderId));
+}
+
+function persistLocalDeliveryDecision(orderId, decision) {
+  if (!orderId) return;
+  const confirmedKey = deliveredConfirmedKey(orderId);
+  const deniedKey = deliveredDeniedKey(orderId);
+  if (decision === true) {
+    setStoredFlag(confirmedKey);
+    removeStoredFlag(deniedKey);
+    return;
+  }
+  setStoredFlag(deniedKey);
+  removeStoredFlag(confirmedKey);
 }
 
 function showOrderToast(message, timeoutMs = 2400) {
@@ -168,6 +198,11 @@ function showOrderToast(message, timeoutMs = 2400) {
     ui.orderToast.classList.remove('show');
     toastTimer = null;
   }, timeoutMs);
+}
+
+function setDeliveryDecisionButtonsDisabled(disabled) {
+  if (ui.deliveredYesBtn) ui.deliveredYesBtn.disabled = disabled;
+  if (ui.deliveredNoBtn) ui.deliveredNoBtn.disabled = disabled;
 }
 
 function lockBodyScrollForModal() {
@@ -255,14 +290,16 @@ function syncDeliveryDecisionUi(orderId, status) {
 
   const confirmed = isDeliveredConfirmed(orderId);
   const denied = isDeliveredDenied(orderId);
+  const firestoreConfirmed = currentOrderData?.deliveryConfirmed === true;
+  const firestoreDenied = currentOrderData?.deliveryConfirmed === false;
 
-  if (denied) {
+  if (firestoreDenied || denied) {
     showDeniedWarning(orderId);
   } else {
     hideDeniedWarning();
   }
 
-  if (!confirmed && !denied) {
+  if (!(firestoreConfirmed || firestoreDenied || confirmed || denied)) {
     openDeliveredModal();
   } else {
     closeDeliveredModal({ restoreFocus: false });
@@ -367,6 +404,7 @@ function showNotFound(message) {
   closeDeliveredModal({ restoreFocus: false });
   hideDeniedWarning();
   ui.notFoundMessage.textContent = message || 'לא הצלחנו למצוא את ההזמנה המבוקשת.';
+  currentOrderData = null;
 }
 
 function showOrderContent() {
@@ -395,11 +433,50 @@ function renderOrder(orderId, orderData) {
   ui.orderTotal.textContent = formatMoney(orderData.total);
 }
 
+async function submitDeliveryDecision(decision) {
+  if (decisionInFlight) return false;
+  if (!currentOrderRef || !currentOrderId) return false;
+
+  decisionInFlight = true;
+  setDeliveryDecisionButtonsDisabled(true);
+
+  try {
+    const snapshot = await getDoc(currentOrderRef);
+    if (!snapshot.exists()) {
+      showOrderToast('ההזמנה לא נמצאה', 2600);
+      return false;
+    }
+
+    const liveOrder = snapshot.data() || {};
+    if (liveOrder.status !== DELIVERED_STATUS) {
+      showOrderToast('ההזמנה עדיין לא סומנה כנמסרה', 2600);
+      return false;
+    }
+
+    await updateDoc(currentOrderRef, {
+      deliveryConfirmed: decision,
+      deliveryConfirmedAt: serverTimestamp(),
+      deliveryConfirmNote: decision ? 'customer_confirmed' : 'customer_denied',
+    });
+
+    persistLocalDeliveryDecision(currentOrderId, decision);
+    return true;
+  } catch (error) {
+    console.error('Failed to update delivery decision', error);
+    showOrderToast('שגיאה בעדכון אישור המסירה', 2800);
+    return false;
+  } finally {
+    decisionInFlight = false;
+    setDeliveryDecisionButtonsDisabled(false);
+  }
+}
+
 function bindDeliveryDecisionEvents() {
   if (ui.deliveredYesBtn) {
-    ui.deliveredYesBtn.addEventListener('click', () => {
+    ui.deliveredYesBtn.addEventListener('click', async () => {
       if (!currentOrderId) return;
-      setStoredFlag(deliveredConfirmedKey(currentOrderId));
+      const success = await submitDeliveryDecision(true);
+      if (!success) return;
       closeDeliveredModal();
       hideDeniedWarning();
       showOrderToast('מעולה ✅ בתיאבון!');
@@ -407,9 +484,10 @@ function bindDeliveryDecisionEvents() {
   }
 
   if (ui.deliveredNoBtn) {
-    ui.deliveredNoBtn.addEventListener('click', () => {
+    ui.deliveredNoBtn.addEventListener('click', async () => {
       if (!currentOrderId) return;
-      setStoredFlag(deliveredDeniedKey(currentOrderId));
+      const success = await submitDeliveryDecision(false);
+      if (!success) return;
       closeDeliveredModal();
       showDeniedWarning(currentOrderId);
     });
@@ -426,6 +504,7 @@ function initOrderPage() {
   }
 
   currentOrderId = orderId;
+  currentOrderData = null;
   bindDeliveryDecisionEvents();
 
   if (!db) {
@@ -434,6 +513,7 @@ function initOrderPage() {
   }
 
   const orderRef = doc(db, 'orders', orderId);
+  currentOrderRef = orderRef;
   unsubscribeOrder = onSnapshot(
     orderRef,
     (snapshot) => {
@@ -441,8 +521,9 @@ function initOrderPage() {
         showNotFound('הזמנה לא נמצאה');
         return;
       }
+      currentOrderData = snapshot.data() || null;
       showOrderContent();
-      renderOrder(orderId, snapshot.data());
+      renderOrder(orderId, currentOrderData);
     },
     (error) => {
       console.error('Failed to load order status', error);

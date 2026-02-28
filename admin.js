@@ -52,6 +52,7 @@ let selectionToolbarInfo = null;
 let selectAllOrdersBtn = null;
 let clearAllOrdersBtn = null;
 let deleteSelectedOrdersBtn = null;
+let onlyDeniedDeliveryToggle = null;
 
 const currencyFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -69,6 +70,7 @@ let latestOrders = [];
 let deleteMode = 'all';
 let deletionInFlight = false;
 let isDeleteModalOpen = false;
+let showOnlyDeniedDelivery = false;
 const selectedOrderIds = new Set();
 
 function showToast(message, timeoutMs = 2600) {
@@ -221,9 +223,13 @@ function formatModifiers(modifiers) {
 async function setOrderStatus(orderId, nextStatus) {
   try {
     const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
-    await fs.updateDoc(fs.doc(firestoreDb, 'orders', orderId), {
-      status: nextStatus,
-    });
+    const updatePayload = { status: nextStatus };
+    if (nextStatus === 'delivered') {
+      updatePayload.deliveryConfirmed = null;
+      updatePayload.deliveryConfirmedAt = null;
+      updatePayload.deliveryConfirmNote = '';
+    }
+    await fs.updateDoc(fs.doc(firestoreDb, 'orders', orderId), updatePayload);
   } catch (error) {
     console.error('Failed to update order status', error);
     showToast('שגיאה בעדכון סטטוס ההזמנה');
@@ -270,6 +276,50 @@ function renderItems(items) {
       `;
     })
     .join('');
+}
+
+function hasDeniedDelivery(order) {
+  return order?.status === 'delivered' && order?.deliveryConfirmed === false;
+}
+
+function deliveryStatusPresentation(order) {
+  const fallback = {
+    pillClass: order.status,
+    pillText: STATUS_LABELS[order.status] || order.status,
+    subText: '',
+    subClass: '',
+    alertText: '',
+  };
+
+  if (order.status !== 'delivered') return fallback;
+
+  if (order.deliveryConfirmed === true) {
+    return {
+      pillClass: 'delivered-confirmed',
+      pillText: 'נמסר (הלקוח אישר)',
+      subText: '',
+      subClass: '',
+      alertText: '',
+    };
+  }
+
+  if (order.deliveryConfirmed === false) {
+    return {
+      pillClass: 'delivered-denied',
+      pillText: 'לא נמסר',
+      subText: 'הלקוח סימן שלא קיבל',
+      subClass: 'delivered-denied',
+      alertText: '⚠️ הלקוח דיווח שלא קיבל את ההזמנה',
+    };
+  }
+
+  return {
+    pillClass: 'delivered-pending',
+    pillText: 'נמסר (ממתין לאישור לקוח)',
+    subText: '',
+    subClass: '',
+    alertText: '',
+  };
 }
 
 function getDeleteModeValue() {
@@ -412,22 +462,30 @@ function renderOrders(orders) {
   latestOrders = Array.isArray(orders) ? orders : [];
   pruneSelectedOrderIds();
   ordersList.innerHTML = '';
-  const hasOrders = latestOrders.length > 0;
+  const visibleOrders = showOnlyDeniedDelivery
+    ? latestOrders.filter((order) => hasDeniedDelivery(order))
+    : latestOrders;
+  const hasOrders = visibleOrders.length > 0;
   emptyState.hidden = hasOrders;
+  emptyState.textContent = showOnlyDeniedDelivery
+    ? 'אין הזמנות שהלקוח סימן כלא נמסר.'
+    : 'אין הזמנות להצגה כרגע.';
   updateSelectionToolbar();
   updateDeleteUiState();
 
   if (!hasOrders) return;
 
-  latestOrders.forEach((order) => {
+  visibleOrders.forEach((order) => {
     const isChecked = selectedOrderIds.has(order.id);
+    const statusView = deliveryStatusPresentation(order);
     const card = document.createElement('article');
     card.className = 'order-card';
     card.innerHTML = `
       <div class="order-head">
         <div class="order-head-main">
           <h3>הזמנה #${escapeHtml(order.id.slice(0, 8))}</h3>
-          <span class="status-pill ${escapeHtml(order.status)}">${escapeHtml(STATUS_LABELS[order.status] || order.status)}</span>
+          <span class="status-pill ${escapeHtml(statusView.pillClass)}">${escapeHtml(statusView.pillText)}</span>
+          ${statusView.subText ? `<div class="status-subtext ${escapeHtml(statusView.subClass)}">${escapeHtml(statusView.subText)}</div>` : ''}
         </div>
         <label class="order-select-control">
           <input type="checkbox" class="order-select-checkbox" data-order-id="${escapeHtml(order.id)}" ${isChecked ? 'checked' : ''} />
@@ -435,6 +493,7 @@ function renderOrders(orders) {
         </label>
         <div><strong>${formatMoney(order.total)}</strong></div>
       </div>
+      ${statusView.alertText ? `<p class="delivery-alert">${escapeHtml(statusView.alertText)}</p>` : ''}
       <div class="order-meta">
         <div><strong>התקבל:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
         <div><strong>איסוף:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
@@ -785,6 +844,10 @@ function setPinGateVisible(isVisible) {
 function resetDashboardView() {
   latestOrders = [];
   selectedOrderIds.clear();
+  showOnlyDeniedDelivery = false;
+  if (onlyDeniedDeliveryToggle) {
+    onlyDeniedDeliveryToggle.checked = false;
+  }
   if (lastSync) {
     lastSync.textContent = 'ממתין לעדכון...';
   }
@@ -893,6 +956,7 @@ function initDomRefs() {
   selectAllOrdersBtn = document.getElementById('selectAllOrdersBtn');
   clearAllOrdersBtn = document.getElementById('clearAllOrdersBtn');
   deleteSelectedOrdersBtn = document.getElementById('deleteSelectedOrdersBtn');
+  onlyDeniedDeliveryToggle = document.getElementById('onlyDeniedDeliveryToggle');
 }
 
 function initAdminPage() {
@@ -975,6 +1039,14 @@ function initAdminPage() {
   if (deleteSelectedOrdersBtn) {
     deleteSelectedOrdersBtn.addEventListener('click', () => {
       openDeleteOrdersModal('selection');
+    });
+  }
+
+  if (onlyDeniedDeliveryToggle) {
+    onlyDeniedDeliveryToggle.checked = false;
+    onlyDeniedDeliveryToggle.addEventListener('change', () => {
+      showOnlyDeniedDelivery = onlyDeniedDeliveryToggle.checked;
+      renderOrders(latestOrders);
     });
   }
 
