@@ -1,83 +1,95 @@
 ﻿# Shawarma-Hezi
 
-## Deploy SMS (Twilio)
+## Production SMS Flow
 
-This repo sends an SMS after a new order is created in Firestore collection `orders`.
+Customer orders are written by the GitHub Pages frontend into Firestore collection `orders`.
+A Firebase Cloud Function (`onOrderCreatedSendSms`) listens to `orders/{orderId}` and sends SMS through Twilio.
 
-Function name: `onOrderCreatedSendSms`
-Message text: `הזמנתך התקבלה - חזי בצומת`
-Project: `itziks-cart`
+SMS text:
+`הזמנתך התקבלה - חזי בצומת`
+
+Project ID:
+`itziks-cart`
 
 ## CI Deploy (Service Account)
 
-### 1) Create Firebase Service Account Key (one-time)
+GitHub Actions deploy file:
+- `.github/workflows/firebase-deploy.yml`
 
-In Firebase Console:
+### Required GitHub Secrets
 
-1. Go to **Project settings**.
-2. Open **Service accounts** tab.
-3. Click **Generate new private key**.
-4. Download the JSON file.
+Add these in:
+GitHub -> Settings -> Secrets and variables -> Actions
 
-Copy the entire JSON content.
+- `FIREBASE_SERVICE_ACCOUNT_JSON_B64`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
 
-### 2) Add GitHub repository secret for CI auth
+### Create FIREBASE_SERVICE_ACCOUNT_JSON_B64
 
-In GitHub -> **Settings** -> **Secrets and variables** -> **Actions**, add:
+1. Firebase Console -> Project settings -> Service accounts
+2. Click "Generate new private key"
+3. Save the JSON file locally
+4. Base64-encode the full JSON and store the result in `FIREBASE_SERVICE_ACCOUNT_JSON_B64`
 
-- `GOOGLE_APPLICATION_CREDENTIALS_JSON` = full service-account JSON content
+PowerShell example:
 
-### 3) Add Twilio GitHub secrets
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\path\to\service-account.json'))
+```
 
-In the same GitHub secrets screen, add:
+macOS/Linux example:
+
+```bash
+base64 -w 0 /path/to/service-account.json
+```
+
+## Twilio Firebase Functions Secrets
+
+The workflow updates Firebase Functions runtime secrets on each deploy (before deploy command):
 
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
 
-### 4) Set Firebase Functions runtime secrets (one-time, local interactive)
+No Twilio secret is stored in source code.
 
-Run locally while logged in to Firebase:
+## Deploy
+
+Manual:
+1. GitHub -> Actions -> `Firebase Deploy`
+2. Click `Run workflow`
+
+Automatic:
+- Push to `main` with changes under:
+  - `functions/**`
+  - `firestore.rules`
+  - `.firebaserc`
+  - `firebase.json`
+
+Deploy command used by workflow:
 
 ```bash
-firebase functions:secrets:set TWILIO_ACCOUNT_SID --project itziks-cart
-firebase functions:secrets:set TWILIO_AUTH_TOKEN --project itziks-cart
-firebase functions:secrets:set TWILIO_FROM_NUMBER --project itziks-cart
+firebase deploy --only functions,firestore:rules --project itziks-cart --non-interactive
 ```
 
-### 5) Trigger deploy via GitHub Actions
+## Verification Checklist
 
-- Open GitHub -> Actions -> `Deploy Firebase`
-- Click `Run workflow`
-
-The workflow deploys:
-
-```bash
-firebase deploy --project itziks-cart --only functions,firestore:rules --non-interactive
-```
-
-### 6) Verify deployment
-
-- Firebase Console -> Build -> Functions: `onOrderCreatedSendSms` is active.
-- Firebase Console -> Firestore -> `orders` collection exists.
-
-### 7) Smoke test
-
-1. Place a new order with phone `05xxxxxxxx`.
-2. Confirm SMS was received.
-3. Confirm Firestore order fields were updated:
-   - `smsSent: true`
-   - `smsSentAt: <timestamp>`
-   - `smsError: null`
-
-If phone is invalid, function skips send and writes:
-
-- `smsSent: false`
-- `smsSentAt: <timestamp>`
-- `smsError: "invalid_phone"`
+1. Firebase Console -> Build -> Functions: `onOrderCreatedSendSms` is active.
+2. Place a test order from production site with valid phone (`05xxxxxxxx`).
+3. Confirm SMS was received.
+4. In Firestore order doc verify fields:
+   - `smsSent`
+   - `smsStatus`
+   - `smsSid`
+   - `smsSentAt`
+   - `smsError`
 
 ## Notes
 
-- Function trigger path: `orders/{orderId}`
-- Function uses Twilio secrets: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`
-- Phone keys checked in order doc: `phone`, `phoneNumber`, `customerPhone`, `customer.phone`
+- Frontend project config is in `src/firebase.js` and points to `itziks-cart`.
+- Order payload is written to collection `orders` and includes phone keys compatible with SMS function:
+  - `phone`
+  - `customerPhone`
+  - `customer.phone`

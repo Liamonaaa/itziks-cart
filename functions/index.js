@@ -43,8 +43,8 @@ function normalizeIsraeliPhone(rawPhone) {
 
 function getOrderPhone(orderData) {
   if (typeof orderData?.phone === 'string') return orderData.phone;
-  if (typeof orderData?.phoneNumber === 'string') return orderData.phoneNumber;
   if (typeof orderData?.customerPhone === 'string') return orderData.customerPhone;
+  if (typeof orderData?.phoneNumber === 'string') return orderData.phoneNumber;
   if (typeof orderData?.customer?.phone === 'string') return orderData.customer.phone;
   return '';
 }
@@ -64,6 +64,8 @@ exports.onOrderCreatedSendSms = onDocumentCreated(
   async (event) => {
     const { orderId } = event.params;
     const orderRef = db.collection('orders').doc(orderId);
+    let rawPhone = '';
+    let normalizedPhone = null;
 
     try {
       const latestSnapshot = await orderRef.get();
@@ -78,16 +80,21 @@ exports.onOrderCreatedSendSms = onDocumentCreated(
         return;
       }
 
-      const rawPhone = getOrderPhone(orderData);
-      const normalizedPhone = normalizeIsraeliPhone(rawPhone);
+      rawPhone = getOrderPhone(orderData);
+      normalizedPhone = normalizeIsraeliPhone(rawPhone);
       if (!normalizedPhone) {
-        logger.warn('Invalid phone; SMS skipped.', { orderId, rawPhone });
+        logger.warn('Invalid phone; SMS skipped.', {
+          orderId,
+          rawPhone,
+          normalizedPhone,
+        });
         await orderRef.set(
           {
             smsSent: false,
             smsSentAt: FieldValue.serverTimestamp(),
             smsError: 'invalid_phone',
             smsStatus: 'invalid_phone',
+            smsSid: null,
           },
           { merge: true },
         );
@@ -99,7 +106,7 @@ exports.onOrderCreatedSendSms = onDocumentCreated(
         TWILIO_AUTH_TOKEN.value(),
       );
 
-      await client.messages.create({
+      const twilioMessage = await client.messages.create({
         to: normalizedPhone,
         from: TWILIO_FROM_NUMBER.value(),
         body: SMS_TEXT,
@@ -111,20 +118,37 @@ exports.onOrderCreatedSendSms = onDocumentCreated(
           smsSentAt: FieldValue.serverTimestamp(),
           smsError: null,
           smsStatus: 'sent',
+          smsSid: twilioMessage.sid || null,
         },
         { merge: true },
       );
 
-      logger.info('Order SMS sent.', { orderId, to: normalizedPhone });
+      logger.info('Order SMS sent.', {
+        orderId,
+        rawPhone,
+        normalizedPhone,
+        to: normalizedPhone,
+        smsSid: twilioMessage.sid || null,
+      });
     } catch (error) {
       const smsError = sanitizeErrorMessage(error);
-      logger.error('Order SMS failed.', { orderId, smsError });
+      logger.error('Order SMS failed.', {
+        orderId,
+        rawPhone,
+        normalizedPhone,
+        smsError,
+        twilioCode: error?.code || null,
+        twilioStatus: error?.status || null,
+        twilioMoreInfo: error?.moreInfo || null,
+        errorStack: error?.stack || null,
+      });
       await orderRef.set(
         {
           smsSent: false,
           smsSentAt: FieldValue.serverTimestamp(),
           smsError,
           smsStatus: 'failed',
+          smsSid: null,
         },
         { merge: true },
       );

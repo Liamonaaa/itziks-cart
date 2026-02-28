@@ -1,0 +1,112 @@
+name: Firebase Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "functions/**"
+      - "firestore.rules"
+      - ".firebaserc"
+      - "firebase.json"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID: itziks-cart
+      GOOGLE_CLOUD_PROJECT: itziks-cart
+      FIREBASE_PROJECT: itziks-cart
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Firebase CLI
+        shell: bash
+        run: npm i -g firebase-tools
+
+      - name: Install Functions Dependencies
+        shell: bash
+        working-directory: functions
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Validate Functions Syntax
+        shell: bash
+        run: node --check functions/index.js
+
+      - name: Setup Service Account Credentials
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" ]; then
+            echo "Missing required secret: FIREBASE_SERVICE_ACCOUNT_JSON_B64"
+            echo "Add base64-encoded Firebase service account JSON to GitHub Secrets."
+            exit 1
+          fi
+
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" | base64 --decode > "$RUNNER_TEMP/gcp.json"
+          if [ ! -s "$RUNNER_TEMP/gcp.json" ]; then
+            echo "Service account JSON decode failed (empty file)."
+            exit 1
+          fi
+
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp.json" >> "$GITHUB_ENV"
+
+      - name: Firebase Auth Debug
+        shell: bash
+        run: |
+          echo "firebase-tools version:"
+          firebase --version
+          echo "Validating Firebase auth by listing projects..."
+          projects_output="$(firebase projects:list --non-interactive 2>&1)" || {
+            echo "$projects_output"
+            echo "Firebase auth failed. Check FIREBASE_SERVICE_ACCOUNT_JSON_B64 secret."
+            exit 1
+          }
+          echo "$projects_output"
+          if ! echo "$projects_output" | grep -q "itziks-cart"; then
+            echo "Authenticated, but project itziks-cart is not visible to this service account."
+            exit 1
+          fi
+
+      - name: Sync Twilio Firebase Functions Secrets
+        shell: bash
+        env:
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+        run: |
+          if [ -z "$TWILIO_ACCOUNT_SID" ] || [ -z "$TWILIO_AUTH_TOKEN" ] || [ -z "$TWILIO_FROM_NUMBER" ]; then
+            echo "Missing required Twilio secret(s): TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER"
+            exit 1
+          fi
+
+          sid_file="$RUNNER_TEMP/twilio_account_sid.txt"
+          token_file="$RUNNER_TEMP/twilio_auth_token.txt"
+          from_file="$RUNNER_TEMP/twilio_from_number.txt"
+
+          printf '%s' "$TWILIO_ACCOUNT_SID" > "$sid_file"
+          printf '%s' "$TWILIO_AUTH_TOKEN" > "$token_file"
+          printf '%s' "$TWILIO_FROM_NUMBER" > "$from_file"
+
+          firebase functions:secrets:set TWILIO_ACCOUNT_SID --project "$FIREBASE_PROJECT_ID" --data-file "$sid_file" --non-interactive
+          firebase functions:secrets:set TWILIO_AUTH_TOKEN --project "$FIREBASE_PROJECT_ID" --data-file "$token_file" --non-interactive
+          firebase functions:secrets:set TWILIO_FROM_NUMBER --project "$FIREBASE_PROJECT_ID" --data-file "$from_file" --non-interactive
+
+      - name: Deploy Functions and Rules
+        shell: bash
+        run: |
+          echo "Deploying functions + firestore rules to $FIREBASE_PROJECT_ID"
+          firebase deploy --only functions,firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive

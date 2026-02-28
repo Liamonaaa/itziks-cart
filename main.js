@@ -1769,6 +1769,8 @@ function buildFirestoreOrderPayload(entries, total) {
       name: state.name.trim(),
       phone: state.phone.trim(),
     },
+    customerName: state.name.trim(),
+    customerPhone: state.phone.trim(),
     phone: state.phone.trim(),
     pickup,
     items: entries.map((line) => {
