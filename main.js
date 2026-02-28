@@ -1,8 +1,5 @@
-// עריכת וואטסאפ: עדכנו כאן את מספר היעד
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import { db } from "./src/firebase.js";
-
-const WHATSAPP_NUMBER = '972500000000';
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
@@ -191,7 +188,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-11';
+const BUILD_VERSION = '20260228-13';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -1721,42 +1718,6 @@ function validateOrder() {
   return '';
 }
 
-function lineWhatsappText(line) {
-  const unit = lineUnitPrice(line);
-  const base = `- ${line.name} x${line.quantity} | ${toShekel(lineTotal(line))} (${toShekel(unit)} ליחידה)`;
-  const parts = [base];
-
-  if (line.options) {
-    parts.push(`  אפשרויות: ${optionsSummary(line)}`);
-  }
-
-  if (line.note.trim()) {
-    parts.push(`  הערה לפריט: ${line.note.trim()}`);
-  }
-
-  return parts.join('\n');
-}
-
-function buildWhatsappMessage(entries, total) {
-  const itemLines = entries.map((entry) => lineWhatsappText(entry));
-  const notes = state.notes.trim() ? state.notes.trim() : 'ללא';
-
-  return [
-    `הזמנה חדשה - ${BUSINESS_NAME}`,
-    `כתובת: ${BUSINESS_ADDRESS}`,
-    '',
-    'פריטים:',
-    ...itemLines,
-    '',
-    `סה"כ: ${toShekel(total)}`,
-    `שעת איסוף: ${selectedPickupLabel()}`,
-    '',
-    `שם: ${state.name.trim()}`,
-    `טלפון: ${state.phone.trim()}`,
-    `הערות כלליות: ${notes}`,
-  ].join('\n');
-}
-
 function buildItemModifiers(line) {
   if (line.drinkType) {
     return { drinkType: line.drinkType };
@@ -2100,7 +2061,7 @@ function openCheckoutConfirmation() {
   openModal(ui.confirmModal.modal);
 }
 
-async function sendOrderToWhatsapp() {
+async function submitOrderFromConfirm() {
   const validationError = validateOrder();
   if (validationError) {
     formErrorElement.textContent = validationError;
@@ -2111,20 +2072,7 @@ async function sendOrderToWhatsapp() {
 
   const entries = buildCartEntries();
   const total = totalFromEntries(entries);
-  const message = buildWhatsappMessage(entries, total);
   const orderPayload = buildFirestoreOrderPayload(entries, total);
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-
-  const showWhatsappFallback = (warningMessage) => {
-    formErrorElement.textContent = `${warningMessage} `;
-    const link = document.createElement('a');
-    link.href = whatsappUrl;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    link.className = 'form-error-link';
-    link.textContent = 'שליחה בוואטסאפ';
-    formErrorElement.append(link);
-  };
 
   const resetCheckoutAfterSuccess = () => {
     state.cartLines = [];
@@ -2166,11 +2114,10 @@ async function sendOrderToWhatsapp() {
       stack: error?.stack,
       payload: orderPayload,
     });
-    const firebaseMessage = error?.message || 'Unknown Firebase error';
-    const warningMessage = `נשלח בוואטסאפ בלבד — שגיאת Firebase: ${firebaseMessage}`;
+    const warningMessage = 'שגיאה בשליחת ההזמנה. נסו שוב בעוד רגע.';
     closeModal(ui.confirmModal.modal);
     openMobileCart();
-    showWhatsappFallback(warningMessage);
+    formErrorElement.textContent = warningMessage;
     showToast(warningMessage, 4000);
   } finally {
     ui.confirmModal.sendButton.disabled = false;
@@ -2290,7 +2237,7 @@ function bindFormEvents() {
   });
 
   ui.lineEditor.saveButton.addEventListener('click', saveLineEditor);
-  ui.confirmModal.sendButton.addEventListener('click', sendOrderToWhatsapp);
+  ui.confirmModal.sendButton.addEventListener('click', submitOrderFromConfirm);
 }
 
 function restoreInputs() {
