@@ -95,12 +95,6 @@ async function ensureFirebaseReady() {
           throw new Error('Firestore db import failed from ./src/firebase.js');
         }
 
-        if (!isFirebaseConfigured) {
-          console.warn(
-            'Firebase config may be incomplete in ./src/firebase.js, but continuing because db exists.',
-          );
-        }
-
         return { firestoreApi, db };
       })
       .catch((error) => {
@@ -378,6 +372,9 @@ async function startRealtimeOrders() {
   let firebaseRuntime = null;
   try {
     firebaseRuntime = await ensureFirebaseReady();
+    if (!firebaseRuntime?.db) {
+      throw new Error('Firestore DB instance is missing.');
+    }
   } catch (error) {
     console.error('Failed to initialize Firebase for admin dashboard', error);
     const errorMessage = error?.message || 'Unknown Firebase error';
