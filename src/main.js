@@ -1,4 +1,7 @@
 // עריכת וואטסאפ: עדכנו כאן את מספר היעד
+import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+import { db, isFirebaseConfigured } from './firebase.js';
+
 const WHATSAPP_NUMBER = '972500000000';
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
@@ -113,9 +116,28 @@ const ui = {
 };
 
 let customSelectGlobalBound = false;
+let toastTimeoutId = null;
+const defaultToastMessage = toast?.textContent || '';
 
 function toShekel(value) {
   return `\u20AA${value}`;
+}
+
+function showToast(message, timeoutMs = 2000) {
+  if (!toast) return;
+  if (toastTimeoutId) {
+    clearTimeout(toastTimeoutId);
+    toastTimeoutId = null;
+  }
+
+  toast.textContent = message;
+  toast.classList.add('show');
+
+  toastTimeoutId = setTimeout(() => {
+    toast.classList.remove('show');
+    toast.textContent = defaultToastMessage;
+    toastTimeoutId = null;
+  }, timeoutMs);
 }
 
 function parseItemData(node) {
@@ -1027,6 +1049,66 @@ function buildWhatsappMessage(entries, total) {
   ].join('\n');
 }
 
+function buildItemModifiers(line) {
+  if (!line.options) return {};
+
+  const options = normalizeCoffeeOptions(line.options);
+  const addons = [];
+  if (options.extraShot) addons.push('extra_shot');
+  if (options.vanilla) addons.push('vanilla');
+
+  const modifiers = {
+    size: options.size,
+    milk: options.milk,
+  };
+
+  if (addons.length > 0) {
+    modifiers.addons = addons;
+  }
+
+  return modifiers;
+}
+
+function buildFirestoreOrderPayload(entries, total) {
+  const pickup = { time: state.pickup };
+  const pickupLabel = selectedPickupLabel();
+  if (pickupLabel) {
+    pickup.dayLabel = pickupLabel;
+  }
+
+  return {
+    createdAt: serverTimestamp(),
+    status: 'new',
+    customer: {
+      name: state.name.trim(),
+      phone: state.phone.trim(),
+    },
+    pickup,
+    items: entries.map((line) => {
+      const unitPrice = lineUnitPrice(line);
+      return {
+        id: line.itemId,
+        name: line.name,
+        qty: line.quantity,
+        basePrice: line.basePrice,
+        modifiers: buildItemModifiers(line),
+        unitPrice,
+        lineTotal: lineTotal(line),
+      };
+    }),
+    total,
+    notes: state.notes.trim(),
+  };
+}
+
+async function saveOrderToFirestore(payload) {
+  if (!db || !isFirebaseConfigured) {
+    throw new Error('FIREBASE_NOT_CONFIGURED');
+  }
+
+  await addDoc(collection(db, 'orders'), payload);
+}
+
 function openModal(modal) {
   modal.classList.add('show');
   modal.removeAttribute('hidden');
@@ -1236,7 +1318,7 @@ function openCheckoutConfirmation() {
   openModal(ui.confirmModal.modal);
 }
 
-function sendOrderToWhatsapp() {
+async function sendOrderToWhatsapp() {
   const validationError = validateOrder();
   if (validationError) {
     formErrorElement.textContent = validationError;
@@ -1247,9 +1329,34 @@ function sendOrderToWhatsapp() {
   const entries = buildCartEntries();
   const total = totalFromEntries(entries);
   const message = buildWhatsappMessage(entries, total);
+  const orderPayload = buildFirestoreOrderPayload(entries, total);
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-  window.open(url, '_blank', 'noopener');
-  closeModal(ui.confirmModal.modal);
+  const popup = window.open('about:blank', '_blank', 'noopener');
+  ui.confirmModal.sendButton.disabled = true;
+
+  let warningMessage = '';
+
+  try {
+    await saveOrderToFirestore(orderPayload);
+    formErrorElement.textContent = '';
+    showToast('ההזמנה נשלחה ✅');
+  } catch (error) {
+    console.error('Failed to save order to Firestore', error);
+    warningMessage = isFirebaseConfigured
+      ? 'ההזמנה נשלחה בוואטסאפ, אבל לא נשמרה במערכת.'
+      : 'ההזמנה נשלחה בוואטסאפ בלבד (חסר חיבור Firebase).';
+    formErrorElement.textContent = warningMessage;
+    showToast(warningMessage, 3200);
+  } finally {
+    if (popup) {
+      popup.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+
+    closeModal(ui.confirmModal.modal);
+    ui.confirmModal.sendButton.disabled = false;
+  }
 }
 
 function initExistingInteractions() {
@@ -1280,15 +1387,9 @@ function initExistingInteractions() {
   copyPhone.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(PHONE);
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 1600);
+      showToast(defaultToastMessage, 1600);
     } catch {
-      toast.textContent = 'העתקה נכשלה';
-      toast.classList.add('show');
-      setTimeout(() => {
-        toast.classList.remove('show');
-        toast.textContent = 'המספר הועתק';
-      }, 1600);
+      showToast('ההעתקה נכשלה', 1600);
     }
   });
 }
@@ -1379,4 +1480,3 @@ function init() {
 }
 
 init();
-

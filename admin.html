@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>לוח הזמנות | העגלה של איציק</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <div class="pin-gate" id="pinGate">
+      <div class="pin-card">
+        <h1>כניסת מנהל</h1>
+        <p>הקלידו PIN כדי לצפות בכל ההזמנות בזמן אמת.</p>
+        <label for="pinInput">PIN</label>
+        <input
+          id="pinInput"
+          type="password"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="••••"
+        />
+        <button id="pinSubmit" type="button">כניסה</button>
+        <p class="pin-error" id="pinError" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <main class="dashboard" id="dashboard" hidden>
+      <header class="topbar">
+        <div>
+          <h2>לוח הזמנות חי</h2>
+          <p id="lastSync">ממתין לעדכון...</p>
+        </div>
+        <button id="enableNotificationsBtn" type="button">אפשר התראות דפדפן</button>
+      </header>
+
+      <section class="counters">
+        <article>
+          <span>חדש</span>
+          <strong id="countNew">0</strong>
+        </article>
+        <article>
+          <span>בהכנה</span>
+          <strong id="countInProgress">0</strong>
+        </article>
+        <article>
+          <span>מוכן</span>
+          <strong id="countReady">0</strong>
+        </article>
+      </section>
+
+      <section id="ordersList" class="orders-list" aria-live="polite"></section>
+      <p id="emptyState" class="empty-state">אין הזמנות להצגה כרגע.</p>
+    </main>
+
+    <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./admin.js"></script>
+  </body>
+</html>
