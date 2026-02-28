@@ -1,9 +1,15 @@
-import {
+﻿import {
+  addDoc,
+  collection,
   doc,
   getDoc,
+  increment,
   onSnapshot,
+  orderBy,
+  query,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import { db } from './src/firebase.js';
 
@@ -12,6 +18,7 @@ const STATUS_FLOW = ['new', 'in_progress', 'ready', 'delivered'];
 const DELIVERED_STATUS = 'delivered';
 const DELIVERED_CONFIRMED_PREFIX = 'deliveredConfirmed_';
 const DELIVERED_DENIED_PREFIX = 'deliveredDenied_';
+const CHAT_MAX_CHARS = 500;
 
 const STATUS_META = {
   new: { label: 'חדש', className: 'new' },
@@ -36,9 +43,15 @@ const ui = {
   customerNotes: document.getElementById('customerNotes'),
   orderItems: document.getElementById('orderItems'),
   orderTotal: document.getElementById('orderTotal'),
-  businessRepliesSection: document.getElementById('businessRepliesSection'),
-  businessRepliesEmpty: document.getElementById('businessRepliesEmpty'),
-  businessRepliesList: document.getElementById('businessRepliesList'),
+  orderChatSection: document.getElementById('orderChatSection'),
+  chatUnreadBadge: document.getElementById('chatUnreadBadge'),
+  chatEmpty: document.getElementById('chatEmpty'),
+  chatMessagesList: document.getElementById('chatMessagesList'),
+  chatComposeForm: document.getElementById('chatComposeForm'),
+  chatInput: document.getElementById('chatInput'),
+  chatCharCount: document.getElementById('chatCharCount'),
+  chatSendBtn: document.getElementById('chatSendBtn'),
+  chatError: document.getElementById('chatError'),
   newReplyToast: document.getElementById('newReplyToast'),
   showReplySectionBtn: document.getElementById('showReplySectionBtn'),
   deliveredWarning: document.getElementById('deliveredWarning'),
@@ -51,15 +64,20 @@ const ui = {
 };
 
 let unsubscribeOrder = null;
+let unsubscribeMessages = null;
 let currentOrderId = '';
 let currentOrderRef = null;
 let currentOrderData = null;
+let currentMessages = [];
+let knownBusinessMessageCount = null;
 let isDeliveredModalOpen = false;
 let lastFocusedBeforeModal = null;
 let modalLockedScrollY = 0;
 let toastTimer = null;
 let decisionInFlight = false;
-let knownReplyCount = null;
+let chatSendInFlight = false;
+let chatReadInFlight = false;
+let hasInteractedWithChat = false;
 
 const shekelFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -129,6 +147,10 @@ function formatModifiers(modifiers) {
     lines.push(`תוספות: ${modifiers.addons.join(', ')}`);
   }
 
+  if (modifiers.drinkType) {
+    lines.push(`שתייה: ${modifiers.drinkType}`);
+  }
+
   return lines;
 }
 
@@ -140,13 +162,7 @@ function toMillis(value) {
   return Number.isNaN(millis) ? 0 : millis;
 }
 
-function replyTimestampMillis(reply) {
-  if (!reply || typeof reply !== 'object') return 0;
-  if (Number.isFinite(reply.createdAtMs)) return reply.createdAtMs;
-  return toMillis(reply.createdAt);
-}
-
-function formatReplyTimestamp(value) {
+function formatTimestamp(value) {
   const millis = toMillis(value);
   if (!millis) return '--';
   return new Date(millis).toLocaleString('he-IL', {
@@ -155,30 +171,6 @@ function formatReplyTimestamp(value) {
     day: '2-digit',
     month: '2-digit',
   });
-}
-
-function normalizeAdminReplies(replies) {
-  if (!Array.isArray(replies) || replies.length === 0) return [];
-
-  return replies
-    .map((reply) => {
-      if (!reply || typeof reply !== 'object') return null;
-      const text = typeof reply.text === 'string' ? reply.text.trim() : '';
-      if (!text) return null;
-      return {
-        text,
-        author: typeof reply.author === 'string' ? reply.author : 'staff',
-        createdAt: reply.createdAt || null,
-        createdAtMs: replyTimestampMillis(reply),
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => {
-      if (left.createdAtMs !== right.createdAtMs) {
-        return left.createdAtMs - right.createdAtMs;
-      }
-      return left.text.localeCompare(right.text, 'he');
-    });
 }
 
 function shortOrderNumber(orderId) {
@@ -273,10 +265,10 @@ function showNewReplyToast() {
   });
 }
 
-function focusRepliesSection() {
-  if (!ui.businessRepliesSection) return;
-  ui.businessRepliesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  ui.businessRepliesSection.focus({ preventScroll: true });
+function focusChatSection() {
+  if (!ui.orderChatSection) return;
+  ui.orderChatSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  ui.orderChatSection.focus({ preventScroll: true });
 }
 
 function setDeliveryDecisionButtonsDisabled(disabled) {
@@ -466,7 +458,7 @@ function renderItems(items) {
     itemElement.className = 'item-row';
     itemElement.innerHTML = `
       <div class="item-top">
-        <strong>${escapeHtml(item.name || 'פריט')}</strong>
+        <strong>${escapeHtml(item.displayName || item.name || 'פריט')}</strong>
         <strong>${formatMoney(lineTotal)}</strong>
       </div>
       <div class="item-sub">כמות: ${qty} | מחיר יחידה: ${formatMoney(unitPrice)}</div>
@@ -476,39 +468,202 @@ function renderItems(items) {
   });
 }
 
-function renderBusinessReplies(replies, { shouldNotify = false } = {}) {
-  if (!ui.businessRepliesList || !ui.businessRepliesEmpty) return;
+function normalizeLegacyReplies(replies) {
+  if (!Array.isArray(replies) || replies.length === 0) return [];
+  return replies
+    .map((reply, index) => {
+      const text = typeof reply?.text === 'string' ? reply.text.trim() : '';
+      if (!text) return null;
+      const createdAt = reply?.createdAt || null;
+      return {
+        id: `legacy-${index}`,
+        sender: 'business',
+        text,
+        createdAt,
+        createdAtMs: toMillis(createdAt),
+        readByBusiness: true,
+        readByCustomer: true,
+        ref: null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.createdAtMs - b.createdAtMs);
+}
 
-  const normalizedReplies = normalizeAdminReplies(replies);
-  ui.businessRepliesList.innerHTML = '';
+function normalizeMessageFromDoc(messageDoc) {
+  const data = messageDoc.data() || {};
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!text) return null;
 
-  if (normalizedReplies.length === 0) {
-    ui.businessRepliesEmpty.hidden = false;
-  } else {
-    ui.businessRepliesEmpty.hidden = true;
-    normalizedReplies.forEach((reply) => {
-      const replyElement = document.createElement('li');
-      replyElement.className = 'business-reply-item';
-      replyElement.innerHTML = `
-        <p class="business-reply-text">${escapeHtml(reply.text)}</p>
-        <div class="business-reply-meta">
-          <span>${escapeHtml(reply.author === 'staff' ? 'צוות' : reply.author)}</span>
-          <span>${escapeHtml(formatReplyTimestamp(reply.createdAt || reply.createdAtMs))}</span>
+  const sender = data.sender === 'customer' ? 'customer' : 'business';
+  const createdAt = data.createdAt || null;
+
+  return {
+    id: messageDoc.id,
+    sender,
+    text,
+    createdAt,
+    createdAtMs: toMillis(createdAt),
+    readByBusiness: data.readByBusiness === true,
+    readByCustomer: data.readByCustomer === true,
+    ref: messageDoc.ref,
+  };
+}
+
+function setUnreadBadge(unreadCount) {
+  if (!ui.chatUnreadBadge) return;
+  const hasUnread = unreadCount > 0;
+  ui.chatUnreadBadge.hidden = !hasUnread;
+  ui.chatUnreadBadge.textContent = hasUnread ? 'חדש' : '';
+}
+
+function renderChat(messages, { shouldNotify = false } = {}) {
+  if (!ui.chatMessagesList || !ui.chatEmpty) return;
+
+  const sourceMessages = messages.length
+    ? messages
+    : normalizeLegacyReplies(currentOrderData?.adminReplies);
+
+  ui.chatMessagesList.innerHTML = '';
+
+  sourceMessages.forEach((message) => {
+    const item = document.createElement('li');
+    item.className = `chat-message-item ${message.sender}`;
+    item.innerHTML = `
+      <article class="chat-message-bubble">
+        <p class="chat-message-text">${escapeHtml(message.text)}</p>
+        <div class="chat-message-meta">
+          <span>${message.sender === 'business' ? 'העסק' : 'אתם'}</span>
+          <span>${escapeHtml(formatTimestamp(message.createdAt || message.createdAtMs))}</span>
         </div>
-      `;
-      ui.businessRepliesList.append(replyElement);
-    });
+      </article>
+    `;
+    ui.chatMessagesList.append(item);
+  });
+
+  const hasMessages = sourceMessages.length > 0;
+  ui.chatEmpty.hidden = hasMessages;
+
+  const unreadBusinessCount = messages.filter(
+    (message) => message.sender === 'business' && message.readByCustomer !== true,
+  ).length;
+  setUnreadBadge(unreadBusinessCount);
+
+  const businessCount = messages.filter((message) => message.sender === 'business').length;
+  if (knownBusinessMessageCount === null) {
+    knownBusinessMessageCount = businessCount;
+  } else {
+    if (shouldNotify && businessCount > knownBusinessMessageCount && !hasInteractedWithChat) {
+      showNewReplyToast();
+    }
+    knownBusinessMessageCount = businessCount;
   }
 
-  if (knownReplyCount === null) {
-    knownReplyCount = normalizedReplies.length;
+  if (hasInteractedWithChat && unreadBusinessCount > 0) {
+    markBusinessMessagesRead();
+  }
+
+  if (messages.length > 0) {
+    ui.chatMessagesList.scrollTop = ui.chatMessagesList.scrollHeight;
+  }
+}
+
+function updateChatCharCounter() {
+  if (!ui.chatInput || !ui.chatCharCount) return;
+  const remaining = CHAT_MAX_CHARS - ui.chatInput.value.length;
+  ui.chatCharCount.textContent = `נותרו ${remaining} תווים`;
+  ui.chatCharCount.classList.toggle('is-limit', remaining <= 30);
+}
+
+function clearChatError() {
+  if (!ui.chatError) return;
+  ui.chatError.textContent = '';
+}
+
+async function markBusinessMessagesRead() {
+  if (chatReadInFlight) return;
+  if (!currentOrderRef || !db) return;
+
+  const unreadMessages = currentMessages.filter(
+    (message) =>
+      message.sender === 'business' &&
+      message.readByCustomer !== true &&
+      message.ref,
+  );
+
+  if (unreadMessages.length === 0) {
+    hideNewReplyToast();
     return;
   }
 
-  if (shouldNotify && normalizedReplies.length > knownReplyCount) {
-    showNewReplyToast();
+  chatReadInFlight = true;
+  try {
+    const batch = writeBatch(db);
+    unreadMessages.forEach((message) => {
+      batch.update(message.ref, { readByCustomer: true });
+    });
+    batch.update(currentOrderRef, { unreadForCustomerCount: 0 });
+    await batch.commit();
+    hideNewReplyToast();
+  } catch (error) {
+    console.error('Failed to mark business messages as read', error);
+  } finally {
+    chatReadInFlight = false;
   }
-  knownReplyCount = normalizedReplies.length;
+}
+
+async function sendCustomerMessage() {
+  if (chatSendInFlight) return;
+  if (!currentOrderId || !currentOrderRef || !db) return;
+  if (!ui.chatInput || !ui.chatSendBtn) return;
+
+  const text = ui.chatInput.value.trim();
+  if (!text) {
+    if (ui.chatError) {
+      ui.chatError.textContent = 'יש להזין הודעה לפני שליחה.';
+    }
+    return;
+  }
+
+  if (text.length > CHAT_MAX_CHARS) {
+    if (ui.chatError) {
+      ui.chatError.textContent = `מקסימום ${CHAT_MAX_CHARS} תווים.`;
+    }
+    return;
+  }
+
+  chatSendInFlight = true;
+  ui.chatSendBtn.disabled = true;
+  clearChatError();
+
+  try {
+    await addDoc(collection(db, 'orders', currentOrderId, 'messages'), {
+      sender: 'customer',
+      text,
+      createdAt: serverTimestamp(),
+      readByBusiness: false,
+      readByCustomer: true,
+    });
+
+    await updateDoc(currentOrderRef, {
+      lastMessageAt: serverTimestamp(),
+      lastMessagePreview: text.slice(0, 120),
+      unreadForBusinessCount: increment(1),
+    });
+
+    ui.chatInput.value = '';
+    updateChatCharCounter();
+    showOrderToast('ההודעה נשלחה');
+    hasInteractedWithChat = true;
+  } catch (error) {
+    console.error('Failed to send customer message', error);
+    if (ui.chatError) {
+      ui.chatError.textContent = 'שגיאה בשליחת ההודעה. נסו שוב.';
+    }
+  } finally {
+    chatSendInFlight = false;
+    ui.chatSendBtn.disabled = false;
+  }
 }
 
 function showNotFound(message) {
@@ -519,8 +674,10 @@ function showNotFound(message) {
   hideDeniedWarning();
   ui.notFoundMessage.textContent = message || 'לא הצלחנו למצוא את ההזמנה המבוקשת.';
   currentOrderData = null;
-  knownReplyCount = null;
+  currentMessages = [];
+  knownBusinessMessageCount = null;
   hideNewReplyToast();
+  renderChat([], { shouldNotify: false });
 }
 
 function showOrderContent() {
@@ -529,7 +686,7 @@ function showOrderContent() {
   ui.orderContent.hidden = false;
 }
 
-function renderOrder(orderId, orderData, { notifyOnNewReply = false } = {}) {
+function renderOrder(orderId, orderData) {
   const status = typeof orderData.status === 'string' ? orderData.status : 'new';
   const statusMeta = STATUS_META[status] || STATUS_META.new;
 
@@ -547,7 +704,6 @@ function renderOrder(orderId, orderData, { notifyOnNewReply = false } = {}) {
 
   renderItems(orderData.items);
   ui.orderTotal.textContent = formatMoney(orderData.total);
-  renderBusinessReplies(orderData.adminReplies, { shouldNotify: notifyOnNewReply });
 }
 
 async function submitDeliveryDecision(decision) {
@@ -611,12 +767,64 @@ function bindDeliveryDecisionEvents() {
   }
 
   document.addEventListener('keydown', handleModalKeydown);
+}
+
+function bindChatEvents() {
+  if (ui.chatInput) {
+    ui.chatInput.addEventListener('input', () => {
+      if (ui.chatInput.value.length > CHAT_MAX_CHARS) {
+        ui.chatInput.value = ui.chatInput.value.slice(0, CHAT_MAX_CHARS);
+      }
+      clearChatError();
+      updateChatCharCounter();
+    });
+  }
+
+  if (ui.chatComposeForm) {
+    ui.chatComposeForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendCustomerMessage();
+    });
+  }
+
+  const engageChat = () => {
+    hasInteractedWithChat = true;
+    hideNewReplyToast();
+    markBusinessMessagesRead();
+  };
+
+  if (ui.orderChatSection) {
+    ui.orderChatSection.addEventListener('focusin', engageChat);
+    ui.orderChatSection.addEventListener('click', engageChat);
+  }
 
   if (ui.showReplySectionBtn) {
     ui.showReplySectionBtn.addEventListener('click', () => {
       hideNewReplyToast();
-      focusRepliesSection();
+      hasInteractedWithChat = true;
+      focusChatSection();
+      markBusinessMessagesRead();
     });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && hasInteractedWithChat) {
+      markBusinessMessagesRead();
+    }
+  });
+
+  updateChatCharCounter();
+}
+
+function stopListeners() {
+  if (typeof unsubscribeOrder === 'function') {
+    unsubscribeOrder();
+    unsubscribeOrder = null;
+  }
+
+  if (typeof unsubscribeMessages === 'function') {
+    unsubscribeMessages();
+    unsubscribeMessages = null;
   }
 }
 
@@ -629,8 +837,12 @@ function initOrderPage() {
 
   currentOrderId = orderId;
   currentOrderData = null;
-  knownReplyCount = null;
+  currentMessages = [];
+  knownBusinessMessageCount = null;
+  hasInteractedWithChat = false;
+
   bindDeliveryDecisionEvents();
+  bindChatEvents();
 
   if (!db) {
     showNotFound('שגיאה בחיבור למסד הנתונים');
@@ -639,6 +851,7 @@ function initOrderPage() {
 
   const orderRef = doc(db, 'orders', orderId);
   currentOrderRef = orderRef;
+
   unsubscribeOrder = onSnapshot(
     orderRef,
     (snapshot) => {
@@ -646,22 +859,44 @@ function initOrderPage() {
         showNotFound('הזמנה לא נמצאה');
         return;
       }
-      const shouldNotify = currentOrderData !== null;
       currentOrderData = snapshot.data() || null;
       showOrderContent();
-      renderOrder(orderId, currentOrderData, { notifyOnNewReply: shouldNotify });
+      renderOrder(orderId, currentOrderData);
+      if (currentMessages.length === 0) {
+        renderChat(currentMessages, { shouldNotify: false });
+      }
     },
     (error) => {
       console.error('Failed to load order status', error);
       showNotFound('שגיאה בטעינת ההזמנה');
     },
   );
+
+  const messagesQuery = query(
+    collection(db, 'orders', orderId, 'messages'),
+    orderBy('createdAt', 'asc'),
+  );
+
+  unsubscribeMessages = onSnapshot(
+    messagesQuery,
+    (snapshot) => {
+      const shouldNotify = knownBusinessMessageCount !== null;
+      currentMessages = snapshot.docs
+        .map((messageDoc) => normalizeMessageFromDoc(messageDoc))
+        .filter(Boolean);
+      renderChat(currentMessages, { shouldNotify });
+    },
+    (error) => {
+      console.error('Failed to load order chat messages', error);
+      if (ui.chatError) {
+        ui.chatError.textContent = 'שגיאה בטעינת הודעות הצ׳אט.';
+      }
+    },
+  );
 }
 
 window.addEventListener('beforeunload', () => {
-  if (typeof unsubscribeOrder === 'function') {
-    unsubscribeOrder();
-  }
+  stopListeners();
 });
 
 if (document.readyState === 'loading') {

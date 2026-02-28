@@ -449,6 +449,25 @@ body.selection-mode .order-select-control {
   gap: 0.6rem;
 }
 
+.order-reply-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.order-chat-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 0.58rem;
+  border-radius: 999px;
+  background: #8f1e1e;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .order-reply-head h4 {
   margin: 0;
   font-size: 0.95rem;
@@ -571,6 +590,11 @@ body.selection-mode .order-select-control {
   padding: 0.45rem 0.55rem;
   display: grid;
   gap: 0.2rem;
+}
+
+.order-reply-item.customer {
+  background: #fdf3e8;
+  border-color: #ebd1b8;
 }
 
 .order-reply-text {

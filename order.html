@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./order.css?v=20260228-4" />
+    <link rel="stylesheet" href="./order.css?v=20260228-6" />
   </head>
   <body>
     <main class="order-page">
@@ -93,13 +93,32 @@
           </div>
         </section>
 
-        <section class="card replies-card" id="businessRepliesSection" tabindex="-1">
+        <section class="card replies-card" id="orderChatSection" tabindex="-1">
           <div class="replies-head">
-            <h2>הודעות מהעסק</h2>
-            <span class="replies-live-note">מתעדכן בזמן אמת</span>
+            <h2>צ׳אט עם העסק</h2>
+            <div class="chat-head-meta">
+              <span class="chat-unread-badge" id="chatUnreadBadge" hidden>חדש</span>
+              <span class="replies-live-note">מתעדכן בזמן אמת</span>
+            </div>
           </div>
-          <p class="replies-empty" id="businessRepliesEmpty">אין עדיין הודעות מהעסק.</p>
-          <ul class="business-replies-list" id="businessRepliesList"></ul>
+          <div class="chat-thread">
+            <p class="replies-empty" id="chatEmpty">אין עדיין הודעות.</p>
+            <ul class="chat-messages-list" id="chatMessagesList"></ul>
+            <form class="chat-compose" id="chatComposeForm">
+              <label for="chatInput">הודעה לעסק</label>
+              <textarea
+                id="chatInput"
+                maxlength="500"
+                placeholder="כתבו הודעה קצרה לעסק..."
+                autocomplete="off"
+              ></textarea>
+              <div class="chat-compose-foot">
+                <span id="chatCharCount">נותרו 500 תווים</span>
+                <button id="chatSendBtn" type="submit">שלח</button>
+              </div>
+              <p class="chat-error" id="chatError" aria-live="polite"></p>
+            </form>
+          </div>
         </section>
       </section>
     </main>
@@ -129,6 +148,6 @@
       <button id="showReplySectionBtn" type="button">הצג</button>
     </section>
 
-    <script type="module" src="./order.js?v=20260228-5"></script>
+    <script type="module" src="./order.js?v=20260228-6"></script>
   </body>
 </html>

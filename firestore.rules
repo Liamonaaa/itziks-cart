@@ -22,6 +22,15 @@ service cloud.firestore {
       // Future production rule (recommended):
       // allow read, update, delete: if request.auth != null
       //   && request.auth.token.admin == true;
+
+      match /messages/{messageId} {
+        // Demo-only security:
+        // Without Firebase Auth, this remains permissive for the current project.
+        // TODO: enforce authenticated customer/admin access in production.
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+      }
     }
   }
 }

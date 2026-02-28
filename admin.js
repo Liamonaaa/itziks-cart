@@ -1,25 +1,25 @@
-import { db } from "./src/firebase.js";
+﻿import { db } from "./src/firebase.js";
 const FIRESTORE_MODULE_URL =
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 const ADMIN_PIN = '1234';
 const AUTH_STORAGE_KEY = 'itziks-admin-pin-ok';
-const DELETE_CONFIRM_PHRASE = 'מחק';
+const DELETE_CONFIRM_PHRASE = '×ž×—×§';
 const DELETE_BATCH_SIZE = 200;
 const HISTORY_PAGE_SIZE = 50;
-const ADMIN_REPLY_MAX_CHARS = 500;
+const ORDER_MESSAGE_MAX_CHARS = 500;
 
 const STATUS_LABELS = {
-  new: 'חדש',
-  in_progress: 'בהכנה',
-  ready: 'מוכן',
-  delivered: 'נמסר',
-  cancelled: 'בוטל',
+  new: '×—×“×©',
+  in_progress: '×‘×”×›× ×”',
+  ready: '×ž×•×›×Ÿ',
+  delivered: '× ×ž×¡×¨',
+  cancelled: '×‘×•×˜×œ',
 };
 const DELETE_STATUS_LABELS = {
-  delivered: 'נמסר',
-  ready: 'מוכן',
-  cancelled: 'בוטל',
+  delivered: '× ×ž×¡×¨',
+  ready: '×ž×•×›×Ÿ',
+  cancelled: '×‘×•×˜×œ',
 };
 
 const STATUS_BUTTONS = ['new', 'in_progress', 'ready', 'delivered', 'cancelled'];
@@ -88,6 +88,7 @@ let historyDateRange = 'all';
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 const selectedOrderIds = new Set();
 let isAdminSessionUnlocked = false;
+const orderChatStateById = new Map();
 
 function showToast(message, timeoutMs = 2600) {
   if (!adminToast) return;
@@ -109,7 +110,7 @@ function showToast(message, timeoutMs = 2600) {
 function showFatalError(error) {
   console.error('Admin runtime error:', error);
   const detail = error?.message ? ` ${error.message}` : '';
-  const message = `שגיאה בטעינת מערכת המנהל. פתח קונסול.${detail}`;
+  const message = `×©×’×™××” ×‘×˜×¢×™× ×ª ×ž×¢×¨×›×ª ×”×ž× ×”×œ. ×¤×ª×— ×§×•× ×¡×•×œ.${detail}`;
 
   let errorNode = document.getElementById('adminFatalError');
   if (!errorNode) {
@@ -221,13 +222,13 @@ function formatModifiers(modifiers) {
 
   const parts = [];
   if (Array.isArray(modifiers.salads) && modifiers.salads.length > 0) {
-    parts.push(`סלטים: ${modifiers.salads.join(', ')}`);
+    parts.push(`×¡×œ×˜×™×: ${modifiers.salads.join(', ')}`);
   }
   if (Array.isArray(modifiers.sauces) && modifiers.sauces.length > 0) {
-    parts.push(`רטבים: ${modifiers.sauces.join(', ')}`);
+    parts.push(`×¨×˜×‘×™×: ${modifiers.sauces.join(', ')}`);
   }
   if (Array.isArray(modifiers.pickles) && modifiers.pickles.length > 0) {
-    parts.push(`חמוצים: ${modifiers.pickles.join(', ')}`);
+    parts.push(`×—×ž×•×¦×™×: ${modifiers.pickles.join(', ')}`);
   }
 
   if (Array.isArray(modifiers.paidAddons) && modifiers.paidAddons.length > 0) {
@@ -235,20 +236,20 @@ function formatModifiers(modifiers) {
       .map((addon) => {
         if (!addon) return '';
         if (typeof addon === 'string') return addon;
-        const label = addon.label || addon.id || 'תוספת';
+        const label = addon.label || addon.id || '×ª×•×¡×¤×ª';
         const price = Number(addon.price);
         return Number.isFinite(price) ? `${label} (+${formatMoney(price)})` : label;
       })
       .filter(Boolean)
       .join(', ');
-    if (paidText) parts.push(`תוספות בתשלום: ${paidText}`);
+    if (paidText) parts.push(`×ª×•×¡×¤×•×ª ×‘×ª×©×œ×•×: ${paidText}`);
   }
 
   // Backward compatibility with older coffee orders.
-  if (modifiers.size) parts.push(`גודל: ${modifiers.size}`);
-  if (modifiers.milk) parts.push(`חלב: ${modifiers.milk}`);
+  if (modifiers.size) parts.push(`×’×•×“×œ: ${modifiers.size}`);
+  if (modifiers.milk) parts.push(`×—×œ×‘: ${modifiers.milk}`);
   if (Array.isArray(modifiers.addons) && modifiers.addons.length > 0) {
-    parts.push(`תוספות: ${modifiers.addons.join(', ')}`);
+    parts.push(`×ª×•×¡×¤×•×ª: ${modifiers.addons.join(', ')}`);
   }
 
   return parts.join(' | ');
@@ -298,7 +299,7 @@ function normalizeAdminReplies(replies) {
 function renderAdminRepliesListHtml(replies) {
   const normalizedReplies = normalizeAdminReplies(replies);
   if (normalizedReplies.length === 0) {
-    return '<li class="order-reply-empty">אין עדיין הודעות מהעסק.</li>';
+    return '<li class="order-reply-empty">××™×Ÿ ×¢×“×™×™×Ÿ ×”×•×“×¢×•×ª ×ž×”×¢×¡×§.</li>';
   }
 
   return normalizedReplies
@@ -307,7 +308,7 @@ function renderAdminRepliesListHtml(replies) {
         <li class="order-reply-item">
           <p class="order-reply-text">${escapeHtml(reply.text)}</p>
           <div class="order-reply-meta">
-            <span>${escapeHtml(reply.author === 'staff' ? 'צוות' : reply.author)}</span>
+            <span>${escapeHtml(reply.author === 'staff' ? '×¦×•×•×ª' : reply.author)}</span>
             <span>${escapeHtml(formatReplyTimestamp(reply.createdAt || reply.createdAtMs))}</span>
           </div>
         </li>
@@ -328,52 +329,126 @@ async function setOrderStatus(orderId, nextStatus) {
     await fs.updateDoc(fs.doc(firestoreDb, 'orders', orderId), updatePayload);
   } catch (error) {
     console.error('Failed to update order status', error);
-    showToast('שגיאה בעדכון סטטוס ההזמנה');
+    showToast('×©×’×™××” ×‘×¢×“×›×•×Ÿ ×¡×˜×˜×•×¡ ×”×”×–×ž× ×”');
   }
 }
 
-async function appendAdminReply(orderId, text) {
+function cleanupOrderChatState(orderId) {
+  const state = orderChatStateById.get(orderId);
+  if (state?.unsubscribe) {
+    state.unsubscribe();
+  }
+  orderChatStateById.delete(orderId);
+}
+
+function cleanupAllOrderChats() {
+  for (const orderId of orderChatStateById.keys()) {
+    cleanupOrderChatState(orderId);
+  }
+}
+
+function normalizeOrderMessage(messageDoc) {
+  const data = messageDoc.data() || {};
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!text) return null;
+
+  return {
+    id: messageDoc.id,
+    ref: messageDoc.ref,
+    sender: data.sender === 'customer' ? 'customer' : 'business',
+    text,
+    createdAt: data.createdAt || null,
+    readByBusiness: data.readByBusiness === true,
+    readByCustomer: data.readByCustomer === true,
+  };
+}
+
+function renderOrderMessagesListHtml(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return '<li class="order-reply-empty">אין עדיין הודעות בצ׳אט.</li>';
+  }
+
+  return messages
+    .map(
+      (message) => `
+        <li class="order-reply-item ${escapeHtml(message.sender)}">
+          <p class="order-reply-text">${escapeHtml(message.text)}</p>
+          <div class="order-reply-meta">
+            <span>${message.sender === 'customer' ? 'לקוח' : 'עסק'}</span>
+            <span>${escapeHtml(formatReplyTimestamp(message.createdAt))}</span>
+          </div>
+        </li>
+      `,
+    )
+    .join('');
+}
+
+async function sendBusinessMessage(orderId, text) {
   if (!isAdminSessionUnlocked || dashboard?.hidden) {
     throw new Error('UNAUTHORIZED_ADMIN_SESSION');
   }
 
   const normalizedText = String(text || '').trim();
   if (!normalizedText) {
-    throw new Error('REPLY_EMPTY');
+    throw new Error('MESSAGE_EMPTY');
   }
 
-  if (normalizedText.length > ADMIN_REPLY_MAX_CHARS) {
-    throw new Error('REPLY_TOO_LONG');
+  if (normalizedText.length > ORDER_MESSAGE_MAX_CHARS) {
+    throw new Error('MESSAGE_TOO_LONG');
   }
 
   const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
   const orderRef = fs.doc(firestoreDb, 'orders', orderId);
+  const messagesCollection = fs.collection(firestoreDb, 'orders', orderId, 'messages');
+  const messageRef = fs.doc(messagesCollection);
+  const batch = fs.writeBatch(firestoreDb);
 
-  await fs.runTransaction(firestoreDb, async (transaction) => {
-    const snapshot = await transaction.get(orderRef);
-    if (!snapshot.exists()) {
-      throw new Error('ORDER_NOT_FOUND');
-    }
-
-    const orderData = snapshot.data() || {};
-    const currentReplies = normalizeAdminReplies(orderData.adminReplies);
-    const reply = {
-      text: normalizedText,
-      author: 'staff',
-      // Demo note: Firestore serverTimestamp is not supported inside array elements.
-      // We store Timestamp.now() for each reply and keep lastAdminReplyAt as serverTimestamp.
-      createdAt: fs.Timestamp.now(),
-      createdAtMs: Date.now(),
-    };
-
-    transaction.update(orderRef, {
-      adminReplies: [...currentReplies, reply],
-      lastAdminReplyAt: fs.serverTimestamp(),
-    });
+  batch.set(messageRef, {
+    sender: 'business',
+    text: normalizedText,
+    createdAt: fs.serverTimestamp(),
+    readByBusiness: true,
+    readByCustomer: false,
   });
+  batch.update(orderRef, {
+    lastMessageAt: fs.serverTimestamp(),
+    lastMessagePreview: normalizedText.slice(0, 120),
+    unreadForCustomerCount: fs.increment(1),
+  });
+  await batch.commit();
 }
 
-function bindReplyComposer(card, order) {
+async function markCustomerMessagesAsRead(orderId) {
+  const state = orderChatStateById.get(orderId);
+  if (!state || state.markingRead) return;
+
+  const order = latestOrders.find((entry) => entry.id === orderId) || null;
+  const unreadDocs = state.messages.filter(
+    (message) =>
+      message.sender === 'customer' &&
+      message.readByBusiness !== true &&
+      message.ref,
+  );
+  if (unreadDocs.length === 0 && Number(order?.unreadForBusinessCount || 0) <= 0) return;
+
+  state.markingRead = true;
+  try {
+    const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+    const orderRef = fs.doc(firestoreDb, 'orders', orderId);
+    const batch = fs.writeBatch(firestoreDb);
+    unreadDocs.forEach((message) => {
+      batch.update(message.ref, { readByBusiness: true });
+    });
+    batch.update(orderRef, { unreadForBusinessCount: 0 });
+    await batch.commit();
+  } catch (error) {
+    console.error('Failed to mark customer messages as read', error);
+  } finally {
+    state.markingRead = false;
+  }
+}
+
+function bindOrderChat(card, order) {
   const toggleBtn = card.querySelector('.reply-toggle-btn');
   const composer = card.querySelector('.order-reply-compose');
   const textarea = card.querySelector('.order-reply-input');
@@ -384,21 +459,36 @@ function bindReplyComposer(card, order) {
   const cancelBtn = card.querySelector('.order-reply-cancel');
   const repliesList = card.querySelector('.order-replies-list');
   const repliesCount = card.querySelector('.order-replies-count');
+  const unreadBadge = card.querySelector('.order-chat-unread');
 
-  if (!toggleBtn || !composer || !textarea || !charCount || !errorNode || !sendBtn || !cancelBtn) return;
-
-  if (repliesList) {
-    repliesList.innerHTML = renderAdminRepliesListHtml(order.adminReplies);
-  }
-  if (repliesCount) {
-    const count = normalizeAdminReplies(order.adminReplies).length;
-    repliesCount.textContent = count > 0 ? `(${count})` : '';
+  if (!toggleBtn || !composer || !textarea || !charCount || !errorNode || !sendBtn || !cancelBtn || !repliesList) {
+    return;
   }
 
-  let isSending = false;
+  cleanupOrderChatState(order.id);
+  const state = {
+    orderId: order.id,
+    messages: [],
+    unsubscribe: null,
+    markingRead: false,
+    sending: false,
+  };
+  orderChatStateById.set(order.id, state);
+
+  const setUnreadBadge = (count) => {
+    if (!unreadBadge) return;
+    const hasUnread = Number(count) > 0;
+    unreadBadge.hidden = !hasUnread;
+    unreadBadge.textContent = hasUnread ? 'חדש' : '';
+  };
+
+  const updateCountLabel = () => {
+    if (!repliesCount) return;
+    repliesCount.textContent = state.messages.length > 0 ? `(${state.messages.length})` : '';
+  };
 
   const updateCharCount = () => {
-    const remaining = ADMIN_REPLY_MAX_CHARS - textarea.value.length;
+    const remaining = ORDER_MESSAGE_MAX_CHARS - textarea.value.length;
     charCount.textContent = `נותרו ${remaining} תווים`;
     charCount.classList.toggle('is-limit', remaining <= 30);
   };
@@ -418,6 +508,7 @@ function bindReplyComposer(card, order) {
     toggleBtn.classList.toggle('is-open', isOpen);
     if (isOpen) {
       textarea.focus();
+      markCustomerMessagesAsRead(order.id);
     } else {
       resetComposer();
     }
@@ -433,8 +524,8 @@ function bindReplyComposer(card, order) {
   });
 
   textarea.addEventListener('input', () => {
-    if (textarea.value.length > ADMIN_REPLY_MAX_CHARS) {
-      textarea.value = textarea.value.slice(0, ADMIN_REPLY_MAX_CHARS);
+    if (textarea.value.length > ORDER_MESSAGE_MAX_CHARS) {
+      textarea.value = textarea.value.slice(0, ORDER_MESSAGE_MAX_CHARS);
     }
     errorNode.textContent = '';
     if (successNode) {
@@ -444,7 +535,7 @@ function bindReplyComposer(card, order) {
   });
 
   sendBtn.addEventListener('click', async () => {
-    if (isSending) return;
+    if (state.sending) return;
     if (dashboard?.hidden || !isAdminSessionUnlocked) {
       errorNode.textContent = 'יש לבצע כניסת מנהל לפני שליחה.';
       return;
@@ -456,18 +547,18 @@ function bindReplyComposer(card, order) {
       return;
     }
 
-    if (text.length > ADMIN_REPLY_MAX_CHARS) {
-      errorNode.textContent = `מקסימום ${ADMIN_REPLY_MAX_CHARS} תווים.`;
+    if (text.length > ORDER_MESSAGE_MAX_CHARS) {
+      errorNode.textContent = `מקסימום ${ORDER_MESSAGE_MAX_CHARS} תווים.`;
       return;
     }
 
-    isSending = true;
+    state.sending = true;
     sendBtn.disabled = true;
     cancelBtn.disabled = true;
     errorNode.textContent = '';
 
     try {
-      await appendAdminReply(order.id, text);
+      await sendBusinessMessage(order.id, text);
       textarea.value = '';
       updateCharCount();
       if (successNode) {
@@ -480,28 +571,66 @@ function bindReplyComposer(card, order) {
         }
       }, 1700);
     } catch (error) {
-      console.error('Failed to send admin reply', error);
-      if (error?.message === 'ORDER_NOT_FOUND') {
-        errorNode.textContent = 'ההזמנה לא נמצאה.';
-      } else if (error?.message === 'REPLY_EMPTY') {
+      console.error('Failed to send business message', error);
+      if (error?.message === 'MESSAGE_EMPTY') {
         errorNode.textContent = 'יש להזין הודעה לפני שליחה.';
-      } else if (error?.message === 'REPLY_TOO_LONG') {
-        errorNode.textContent = `מקסימום ${ADMIN_REPLY_MAX_CHARS} תווים.`;
+      } else if (error?.message === 'MESSAGE_TOO_LONG') {
+        errorNode.textContent = `מקסימום ${ORDER_MESSAGE_MAX_CHARS} תווים.`;
       } else if (error?.message === 'UNAUTHORIZED_ADMIN_SESSION') {
         errorNode.textContent = 'הגישה נחסמה. בצעו כניסה מחדש.';
       } else {
         errorNode.textContent = 'שגיאה בשליחת ההודעה. נסו שוב.';
       }
     } finally {
-      isSending = false;
+      state.sending = false;
       sendBtn.disabled = false;
       cancelBtn.disabled = false;
     }
   });
 
+  setUnreadBadge(Number(order.unreadForBusinessCount) || 0);
+  repliesList.innerHTML = renderOrderMessagesListHtml([]);
+  updateCountLabel();
   updateCharCount();
-}
 
+  ensureFirebaseReady()
+    .then(({ firestoreApi: fs, db: firestoreDb }) => {
+      const messagesQuery = fs.query(
+        fs.collection(firestoreDb, 'orders', order.id, 'messages'),
+        fs.orderBy('createdAt', 'asc'),
+      );
+
+      state.unsubscribe = fs.onSnapshot(
+        messagesQuery,
+        (snapshot) => {
+          if (!orderChatStateById.has(order.id)) return;
+          state.messages = snapshot.docs
+            .map((messageDoc) => normalizeOrderMessage(messageDoc))
+            .filter(Boolean);
+
+          repliesList.innerHTML = renderOrderMessagesListHtml(state.messages);
+          updateCountLabel();
+          const unreadCustomerCount = state.messages.filter(
+            (message) =>
+              message.sender === 'customer' &&
+              message.readByBusiness !== true,
+          ).length;
+          setUnreadBadge(unreadCustomerCount);
+          if (!composer.hidden && unreadCustomerCount > 0) {
+            markCustomerMessagesAsRead(order.id);
+          }
+        },
+        (error) => {
+          console.error('Failed to listen to order messages', error);
+          errorNode.textContent = 'שגיאה בטעינת הודעות ההזמנה.';
+        },
+      );
+    })
+    .catch((error) => {
+      console.error('Failed to initialize order chat listener', error);
+      errorNode.textContent = 'שגיאה בחיבור הצ׳אט למסד הנתונים.';
+    });
+}
 function buildStatusButtons(order) {
   const wrap = document.createElement('div');
   wrap.className = 'status-buttons';
@@ -521,7 +650,7 @@ function buildStatusButtons(order) {
 
 function renderItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
-    return '<li>אין פריטים בהזמנה</li>';
+    return '<li>××™×Ÿ ×¤×¨×™×˜×™× ×‘×”×–×ž× ×”</li>';
   }
 
   return items
@@ -533,10 +662,10 @@ function renderItems(items) {
       return `
         <li>
           <div class="item-line">
-            <strong>${escapeHtml(item.name || 'פריט')}</strong>
+            <strong>${escapeHtml(item.name || '×¤×¨×™×˜')}</strong>
             <span>${formatMoney(lineTotal)}</span>
           </div>
-          <div class="item-sub">כמות: ${qty} | מחיר יחידה: ${formatMoney(Number(item.unitPrice) || 0)}</div>
+          <div class="item-sub">×›×ž×•×ª: ${qty} | ×ž×—×™×¨ ×™×—×™×“×”: ${formatMoney(Number(item.unitPrice) || 0)}</div>
           ${modifiersText ? `<div class="item-sub">${escapeHtml(modifiersText)}</div>` : ''}
         </li>
       `;
@@ -638,7 +767,7 @@ function deliveryStatusPresentation(order) {
   if (order.deliveryConfirmed === true) {
     return {
       pillClass: 'delivered-confirmed',
-      pillText: 'נמסר (הלקוח אישר)',
+      pillText: '× ×ž×¡×¨ (×”×œ×§×•×— ××™×©×¨)',
       subText: '',
       subClass: '',
       alertText: '',
@@ -648,16 +777,16 @@ function deliveryStatusPresentation(order) {
   if (order.deliveryConfirmed === false) {
     return {
       pillClass: 'delivered-denied',
-      pillText: 'לא נמסר',
-      subText: 'הלקוח סימן שלא קיבל',
+      pillText: '×œ× × ×ž×¡×¨',
+      subText: '×”×œ×§×•×— ×¡×™×ž×Ÿ ×©×œ× ×§×™×‘×œ',
       subClass: 'delivered-denied',
-      alertText: '⚠️ הלקוח דיווח שלא קיבל את ההזמנה',
+      alertText: 'âš ï¸ ×”×œ×§×•×— ×“×™×•×•×— ×©×œ× ×§×™×‘×œ ××ª ×”×”×–×ž× ×”',
     };
   }
 
   return {
     pillClass: 'delivered-pending',
-    pillText: 'נמסר (ממתין לאישור לקוח)',
+    pillText: '× ×ž×¡×¨ (×ž×ž×ª×™×Ÿ ×œ××™×©×•×¨ ×œ×§×•×—)',
     subText: '',
     subClass: '',
     alertText: '',
@@ -674,7 +803,7 @@ function renderHistoryOrders() {
   const hasOrders = visibleOrders.length > 0;
   historyEmptyState.hidden = hasOrders;
   if (!hasOrders) {
-    historyEmptyState.textContent = 'אין הזמנות בהיסטוריה לפי הסינון הנוכחי.';
+    historyEmptyState.textContent = '××™×Ÿ ×”×–×ž× ×•×ª ×‘×”×™×¡×˜×•×¨×™×” ×œ×¤×™ ×”×¡×™× ×•×Ÿ ×”× ×•×›×—×™.';
   }
 
   visibleOrders.forEach((order) => {
@@ -685,25 +814,25 @@ function renderHistoryOrders() {
     card.innerHTML = `
       <div class="order-head">
         <div class="order-head-main">
-          <h3>הזמנה #${escapeHtml(order.id.slice(0, 8))}</h3>
-          <span class="status-pill delivered-confirmed">נמסר (הלקוח אישר)</span>
-          <div class="status-subtext">אושר בתאריך: ${escapeHtml(confirmedAtText)}</div>
+          <h3>×”×–×ž× ×” #${escapeHtml(order.id.slice(0, 8))}</h3>
+          <span class="status-pill delivered-confirmed">× ×ž×¡×¨ (×”×œ×§×•×— ××™×©×¨)</span>
+          <div class="status-subtext">××•×©×¨ ×‘×ª××¨×™×š: ${escapeHtml(confirmedAtText)}</div>
         </div>
         <div><strong>${formatMoney(order.total)}</strong></div>
       </div>
       <div class="order-meta">
-        <div><strong>התקבל:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
-        <div><strong>לקוח:</strong> ${escapeHtml(order.customer?.name || '--')} | ${escapeHtml(order.customer?.phone || '--')}</div>
-        <div><strong>איסוף:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
-        <div><strong>הערות:</strong> ${escapeHtml(order.notes || 'ללא')}</div>
+        <div><strong>×”×ª×§×‘×œ:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
+        <div><strong>×œ×§×•×—:</strong> ${escapeHtml(order.customer?.name || '--')} | ${escapeHtml(order.customer?.phone || '--')}</div>
+        <div><strong>××™×¡×•×£:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
+        <div><strong>×”×¢×¨×•×ª:</strong> ${escapeHtml(order.notes || '×œ×œ×')}</div>
       </div>
       <ul class="order-items">${renderItems(order.items)}</ul>
       <section class="order-replies">
-        <h4>הודעות ללקוח</h4>
+        <h4>×”×•×“×¢×•×ª ×œ×œ×§×•×—</h4>
         <ul class="order-replies-list">${renderAdminRepliesListHtml(order.adminReplies)}</ul>
       </section>
       <div class="order-foot">
-        <strong>סה"כ: ${formatMoney(order.total)}</strong>
+        <strong>×¡×”"×›: ${formatMoney(order.total)}</strong>
       </div>
     `;
 
@@ -788,16 +917,16 @@ function getMatchedOrderIds(mode = deleteMode) {
 }
 
 function getDeleteOptionLabel(mode = deleteMode) {
-  if (mode === 'all') return 'מחק הכול';
+  if (mode === 'all') return '×ž×—×§ ×”×›×•×œ';
 
   if (mode === 'status') {
     const labels = getSelectedStatusFilters()
       .map((status) => DELETE_STATUS_LABELS[status] || status)
       .join(', ');
-    return labels ? `מחק לפי סטטוס: ${labels}` : 'מחק לפי סטטוס';
+    return labels ? `×ž×—×§ ×œ×¤×™ ×¡×˜×˜×•×¡: ${labels}` : '×ž×—×§ ×œ×¤×™ ×¡×˜×˜×•×¡';
   }
 
-  return 'מחק לפי בחירה';
+  return '×ž×—×§ ×œ×¤×™ ×‘×—×™×¨×”';
 }
 
 function updateSelectionToolbar() {
@@ -808,8 +937,8 @@ function updateSelectionToolbar() {
   document.body.classList.toggle('selection-mode', selectionModeEnabled);
 
   const selectedCount = getMatchedOrderIds('selection').length;
-  selectionToolbarInfo.textContent = `נבחרו ${selectedCount} הזמנות למחיקה`;
-  deleteSelectedOrdersBtn.textContent = `מחק נבחרים (${selectedCount})`;
+  selectionToolbarInfo.textContent = `× ×‘×—×¨×• ${selectedCount} ×”×–×ž× ×•×ª ×œ×ž×—×™×§×”`;
+  deleteSelectedOrdersBtn.textContent = `×ž×—×§ × ×‘×—×¨×™× (${selectedCount})`;
   deleteSelectedOrdersBtn.disabled = selectedCount === 0 || deletionInFlight;
 }
 
@@ -832,13 +961,13 @@ function updateDeleteUiState() {
 
   const matchedCount = getMatchedOrderIds(deleteMode).length;
   if (deleteMatchCount) {
-    deleteMatchCount.textContent = `נמצאו ${matchedCount} הזמנות למחיקה.`;
+    deleteMatchCount.textContent = `× ×ž×¦××• ${matchedCount} ×”×–×ž× ×•×ª ×œ×ž×—×™×§×”.`;
   }
 
   const phraseMatches = deleteConfirmInput?.value === DELETE_CONFIRM_PHRASE;
   if (executeDeleteOrdersBtn) {
     executeDeleteOrdersBtn.disabled = !phraseMatches || matchedCount === 0 || deletionInFlight;
-    executeDeleteOrdersBtn.textContent = deletionInFlight ? 'מוחק...' : 'מחק';
+    executeDeleteOrdersBtn.textContent = deletionInFlight ? '×ž×•×—×§...' : '×ž×—×§';
   }
 }
 
@@ -871,12 +1000,13 @@ function closeDeleteOrdersModal() {
 function renderOrders() {
   const boardVisibleOrders = currentBoardVisibleOrders();
   pruneSelectedOrderIds(boardVisibleOrders);
+  cleanupAllOrderChats();
   ordersList.innerHTML = '';
   const hasOrders = boardVisibleOrders.length > 0;
   emptyState.hidden = hasOrders;
   emptyState.textContent = showOnlyDeniedDelivery
-    ? 'אין הזמנות שהלקוח סימן כלא נמסר.'
-    : 'אין הזמנות להצגה כרגע.';
+    ? '××™×Ÿ ×”×–×ž× ×•×ª ×©×”×œ×§×•×— ×¡×™×ž×Ÿ ×›×œ× × ×ž×¡×¨.'
+    : '××™×Ÿ ×”×–×ž× ×•×ª ×œ×”×¦×’×” ×›×¨×’×¢.';
   updateSelectionToolbar();
   updateDeleteUiState();
 
@@ -890,58 +1020,61 @@ function renderOrders() {
     card.innerHTML = `
       <div class="order-head">
         <div class="order-head-main">
-          <h3>הזמנה #${escapeHtml(order.id.slice(0, 8))}</h3>
+          <h3>×”×–×ž× ×” #${escapeHtml(order.id.slice(0, 8))}</h3>
           <span class="status-pill ${escapeHtml(statusView.pillClass)}">${escapeHtml(statusView.pillText)}</span>
           ${statusView.subText ? `<div class="status-subtext ${escapeHtml(statusView.subClass)}">${escapeHtml(statusView.subText)}</div>` : ''}
         </div>
         <label class="order-select-control">
           <input type="checkbox" class="order-select-checkbox" data-order-id="${escapeHtml(order.id)}" ${isChecked ? 'checked' : ''} />
-          <span>בחר</span>
+          <span>×‘×—×¨</span>
         </label>
         <div><strong>${formatMoney(order.total)}</strong></div>
       </div>
       ${statusView.alertText ? `<p class="delivery-alert">${escapeHtml(statusView.alertText)}</p>` : ''}
       <div class="order-meta">
-        <div><strong>התקבל:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
-        <div><strong>איסוף:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
-        <div><strong>לקוח:</strong> ${escapeHtml(order.customer?.name || '--')} | ${escapeHtml(order.customer?.phone || '--')}</div>
-        <div><strong>הערות:</strong> ${escapeHtml(order.notes || 'ללא')}</div>
+        <div><strong>×”×ª×§×‘×œ:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
+        <div><strong>××™×¡×•×£:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
+        <div><strong>×œ×§×•×—:</strong> ${escapeHtml(order.customer?.name || '--')} | ${escapeHtml(order.customer?.phone || '--')}</div>
+        <div><strong>×”×¢×¨×•×ª:</strong> ${escapeHtml(order.notes || '×œ×œ×')}</div>
       </div>
       <ul class="order-items">${renderItems(order.items)}</ul>
       <section class="order-replies">
         <div class="order-reply-head">
-          <h4>הודעות להזמנה <span class="order-replies-count"></span></h4>
-          <button
-            type="button"
-            class="reply-toggle-btn"
-            aria-expanded="false"
-            aria-controls="replyCompose-${escapeHtml(order.id)}"
-          >
-            הגב להזמנה
-          </button>
+          <h4>×”×•×“×¢×•×ª ×œ×”×–×ž× ×” <span class="order-replies-count"></span></h4>
+          <div class="order-reply-head-actions">
+            <span class="order-chat-unread" ${Number(order.unreadForBusinessCount) > 0 ? '' : 'hidden'}>חדש</span>
+            <button
+              type="button"
+              class="reply-toggle-btn"
+              aria-expanded="false"
+              aria-controls="replyCompose-${escapeHtml(order.id)}"
+            >
+              הודעות
+            </button>
+          </div>
         </div>
         <div class="order-reply-compose" id="replyCompose-${escapeHtml(order.id)}" hidden>
-          <label for="replyInput-${escapeHtml(order.id)}">הודעה ללקוח</label>
+          <label for="replyInput-${escapeHtml(order.id)}">×”×•×“×¢×” ×œ×œ×§×•×—</label>
           <textarea
             id="replyInput-${escapeHtml(order.id)}"
             class="order-reply-input"
-            maxlength="${ADMIN_REPLY_MAX_CHARS}"
-            placeholder="כתבו עדכון קצר ללקוח..."
+            maxlength="${ORDER_MESSAGE_MAX_CHARS}"
+            placeholder="×›×ª×‘×• ×¢×“×›×•×Ÿ ×§×¦×¨ ×œ×œ×§×•×—..."
           ></textarea>
           <div class="order-reply-compose-foot">
-            <span class="order-reply-char-count">נותרו ${ADMIN_REPLY_MAX_CHARS} תווים</span>
+            <span class="order-reply-char-count">נותרו ${ORDER_MESSAGE_MAX_CHARS} תווים</span>
             <div class="order-reply-actions">
-              <button type="button" class="order-reply-cancel">ביטול</button>
-              <button type="button" class="order-reply-send">שלח</button>
+              <button type="button" class="order-reply-cancel">×‘×™×˜×•×œ</button>
+              <button type="button" class="order-reply-send">×©×œ×—</button>
             </div>
           </div>
           <p class="order-reply-error" aria-live="polite"></p>
-          <p class="order-reply-success" hidden>נשלח ללקוח</p>
+          <p class="order-reply-success" hidden>× ×©×œ×— ×œ×œ×§×•×—</p>
         </div>
-        <ul class="order-replies-list">${renderAdminRepliesListHtml(order.adminReplies)}</ul>
+        <ul class="order-replies-list">${renderOrderMessagesListHtml([])}</ul>
       </section>
       <div class="order-foot">
-        <strong>סה"כ: ${formatMoney(order.total)}</strong>
+        <strong>×¡×”"×›: ${formatMoney(order.total)}</strong>
       </div>
     `;
 
@@ -962,7 +1095,7 @@ function renderOrders() {
     }
 
     card.querySelector('.order-foot').append(buildStatusButtons(order));
-    bindReplyComposer(card, order);
+    bindOrderChat(card, order);
     ordersList.append(card);
   });
 }
@@ -1011,7 +1144,7 @@ function notifyBrowser(message) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  new Notification('חזי בצומת', {
+  new Notification('×—×–×™ ×‘×¦×•×ž×ª', {
     body: message,
   });
 }
@@ -1032,8 +1165,8 @@ function handleIncomingNewOrders(snapshot) {
 
   const message =
     newDocs.length === 1
-      ? 'הזמנה חדשה נכנסה!'
-      : `נכנסו ${newDocs.length} הזמנות חדשות!`;
+      ? '×”×–×ž× ×” ×—×“×©×” × ×›× ×¡×”!'
+      : `× ×›× ×¡×• ${newDocs.length} ×”×–×ž× ×•×ª ×—×“×©×•×ª!`;
 
   showToast(message, 3600);
   playNewOrderSound();
@@ -1049,18 +1182,18 @@ function updateNotificationsButton() {
   }
 
   if (Notification.permission === 'granted') {
-    enableNotificationsBtn.textContent = 'התראות פעילות';
+    enableNotificationsBtn.textContent = '×”×ª×¨××•×ª ×¤×¢×™×œ×•×ª';
     enableNotificationsBtn.disabled = true;
     return;
   }
 
   if (Notification.permission === 'denied') {
-    enableNotificationsBtn.textContent = 'התראות חסומות בדפדפן';
+    enableNotificationsBtn.textContent = '×”×ª×¨××•×ª ×—×¡×•×ž×•×ª ×‘×“×¤×“×¤×Ÿ';
     enableNotificationsBtn.disabled = true;
     return;
   }
 
-  enableNotificationsBtn.textContent = 'אפשר התראות דפדפן';
+  enableNotificationsBtn.textContent = '××¤×©×¨ ×”×ª×¨××•×ª ×“×¤×“×¤×Ÿ';
   enableNotificationsBtn.disabled = false;
 }
 
@@ -1144,7 +1277,7 @@ async function deleteOrdersBySelection(orderIds) {
 
 function buildFinalDeleteConfirmation(mode, matchedCount) {
   const optionLabel = getDeleteOptionLabel(mode);
-  return `אישור סופי\nאפשרות: ${optionLabel}\nיימחקו ${matchedCount} הזמנות.\nלהמשיך?`;
+  return `××™×©×•×¨ ×¡×•×¤×™\n××¤×©×¨×•×ª: ${optionLabel}\n×™×™×ž×—×§×• ${matchedCount} ×”×–×ž× ×•×ª.\n×œ×”×ž×©×™×š?`;
 }
 
 async function executeDeleteOrders() {
@@ -1155,13 +1288,13 @@ async function executeDeleteOrders() {
   const matchedCount = matchedIds.length;
 
   if (deleteConfirmInput.value !== DELETE_CONFIRM_PHRASE) {
-    deleteModalError.textContent = 'כדי למחוק, הקלידו בדיוק: מחק';
+    deleteModalError.textContent = '×›×“×™ ×œ×ž×—×•×§, ×”×§×œ×™×“×• ×‘×“×™×•×§: ×ž×—×§';
     updateDeleteUiState();
     return;
   }
 
   if (matchedCount === 0) {
-    deleteModalError.textContent = 'אין הזמנות מתאימות למחיקה.';
+    deleteModalError.textContent = '××™×Ÿ ×”×–×ž× ×•×ª ×ž×ª××™×ž×•×ª ×œ×ž×—×™×§×”.';
     updateDeleteUiState();
     return;
   }
@@ -1188,11 +1321,11 @@ async function executeDeleteOrders() {
     }
 
     deleteConfirmInput.value = '';
-    showToast(`נמחקו ${deletedCount} הזמנות`, 3600);
+    showToast(`× ×ž×—×§×• ${deletedCount} ×”×–×ž× ×•×ª`, 3600);
     closeDeleteOrdersModal();
   } catch (error) {
     console.error('Failed to delete orders', error);
-    deleteModalError.textContent = 'שגיאה במחיקה. נסו שוב.';
+    deleteModalError.textContent = '×©×’×™××” ×‘×ž×—×™×§×”. × ×¡×• ×©×•×‘.';
   } finally {
     deletionInFlight = false;
     updateDeleteUiState();
@@ -1210,9 +1343,9 @@ async function startRealtimeOrders() {
     console.error('Failed to initialize Firebase for admin dashboard', error);
     const errorMessage = error?.message || 'Unknown Firebase error';
     ordersList.innerHTML =
-      `<article class="order-card"><strong>שגיאת Firebase.</strong><p>${escapeHtml(errorMessage)}</p></article>`;
+      `<article class="order-card"><strong>×©×’×™××ª Firebase.</strong><p>${escapeHtml(errorMessage)}</p></article>`;
     emptyState.hidden = true;
-    showToast(`שגיאת Firebase: ${errorMessage}`, 3800);
+    showToast(`×©×’×™××ª Firebase: ${errorMessage}`, 3800);
     return;
   }
 
@@ -1247,11 +1380,11 @@ async function startRealtimeOrders() {
       updateCounters(boardOrdersSource());
       renderOrders();
       renderHistoryOrders();
-      lastSync.textContent = `עודכן: ${new Date().toLocaleTimeString('he-IL')}`;
+      lastSync.textContent = `×¢×•×“×›×Ÿ: ${new Date().toLocaleTimeString('he-IL')}`;
     },
     (error) => {
       console.error('Realtime orders listener failed', error);
-      showToast('שגיאה בהתחברות לעדכוני Firestore');
+      showToast('×©×’×™××” ×‘×”×ª×—×‘×¨×•×ª ×œ×¢×“×›×•× ×™ Firestore');
     },
   );
 }
@@ -1286,6 +1419,7 @@ function setPinGateVisible(isVisible) {
 function resetDashboardView() {
   latestOrders = [];
   selectedOrderIds.clear();
+  cleanupAllOrderChats();
   showOnlyDeniedDelivery = false;
   isHistoryView = false;
   historySearchTerm = '';
@@ -1309,7 +1443,7 @@ function resetDashboardView() {
   if (liveBoardView) liveBoardView.hidden = false;
   if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
   if (lastSync) {
-    lastSync.textContent = 'ממתין לעדכון...';
+    lastSync.textContent = '×ž×ž×ª×™×Ÿ ×œ×¢×“×›×•×Ÿ...';
   }
   if (countNew) countNew.textContent = '0';
   if (countInProgress) countInProgress.textContent = '0';
@@ -1325,6 +1459,7 @@ function stopRealtimeOrders() {
   }
   unsubscribeOrders = null;
   initializedSnapshot = false;
+  cleanupAllOrderChats();
 }
 
 function lockDashboard({ clearStoredAuth = true, focusPin = true } = {}) {
@@ -1379,7 +1514,7 @@ function unlockDashboard({ persist = true } = {}) {
 function submitPin() {
   const pin = pinInput.value.trim();
   if (pin !== ADMIN_PIN) {
-    pinError.textContent = 'PIN שגוי';
+    pinError.textContent = 'PIN ×©×’×•×™';
     return;
   }
 
@@ -1526,7 +1661,7 @@ function initAdminPage() {
     executeDeleteOrdersBtn.addEventListener('click', () => {
       executeDeleteOrders().catch((error) => {
         console.error('Delete action failed', error);
-        deleteModalError.textContent = 'שגיאה במחיקה. נסו שוב.';
+        deleteModalError.textContent = '×©×’×™××” ×‘×ž×—×™×§×”. × ×¡×• ×©×•×‘.';
         deletionInFlight = false;
         updateDeleteUiState();
       });
@@ -1605,3 +1740,4 @@ if (document.readyState === 'loading') {
 } else {
   bootAdminPage();
 }
+

@@ -1759,6 +1759,10 @@ function buildFirestoreOrderPayload(entries, total) {
     deliveryConfirmed: null,
     deliveryConfirmedAt: null,
     deliveryConfirmNote: '',
+    unreadForBusinessCount: 0,
+    unreadForCustomerCount: 0,
+    lastMessageAt: null,
+    lastMessagePreview: '',
     adminReplies: [],
     lastAdminReplyAt: null,
     customer: {
