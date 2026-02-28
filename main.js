@@ -6,61 +6,72 @@ const WHATSAPP_NUMBER = '972500000000';
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
-  0: { open: '07:00', close: '17:00', label: 'יום א׳' },
-  1: { open: '07:00', close: '17:00', label: 'יום ב׳' },
-  2: { open: '07:00', close: '17:00', label: 'יום ג׳' },
-  3: { open: '07:00', close: '17:00', label: 'יום ד׳' },
-  4: { open: '07:00', close: '17:00', label: 'יום ה׳' },
-  5: { open: '07:00', close: '15:00', label: 'יום ו׳' },
-  6: { open: '07:00', close: '17:00', label: 'שבת' },
+  0: { open: '11:00', close: '23:00', label: 'יום א׳' },
+  1: { open: '11:00', close: '23:00', label: 'יום ב׳' },
+  2: { open: '11:00', close: '23:00', label: 'יום ג׳' },
+  3: { open: '11:00', close: '23:00', label: 'יום ד׳' },
+  4: { open: '11:00', close: '23:00', label: 'יום ה׳' },
+  5: { open: '11:00', close: '16:00', label: 'יום ו׳' },
+  6: { open: '11:00', close: '23:30', label: 'שבת' },
 };
 
-const BUSINESS_NAME = 'העגלה של איציק';
-const BUSINESS_ADDRESS = 'ההדרים 178, אבן יהודה';
+const BUSINESS_NAME = 'חזי בצומת';
+const BUSINESS_ADDRESS = 'צומת אבן יהודה';
 const PHONE = '050-0000000';
 const STORAGE_KEY = 'itziks-cart-order-v2';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
 
-const COFFEE_ITEM_IDS = new Set([
-  'espresso',
-  'double-espresso',
-  'americano',
-  'cappuccino',
-  'latte',
-  'mocha',
-  'iced-americano',
-  'iced-latte',
-  'iced-mocha',
+const SANDWICH_ITEM_IDS = new Set([
+  'pita-veal',
+  'pita-turkey',
+  'laffa-veal',
+  'laffa-turkey',
 ]);
 
-const DEFAULT_COFFEE_OPTIONS = {
-  size: 'small',
-  milk: 'regular',
-  extraShot: false,
-  vanilla: false,
-};
+const SALAD_OPTIONS = [
+  'עגבנייה',
+  'מלפפון',
+  'בצל',
+  'כרוב',
+  'חציל',
+  'פטרוזיליה',
+  'סלט חריף',
+  'סלט ירוק',
+];
 
-const COFFEE_LABELS = {
-  size: { small: 'קטן', regular: 'רגיל', large: 'גדול (+₪3)' },
-  milk: {
-    regular: 'רגיל',
-    soy: 'סויה (+₪2)',
-    oat: 'שיבולת (+₪2)',
-  },
-};
+const SAUCE_OPTIONS = [
+  'טחינה',
+  'עמבה',
+  'שום',
+  'חריף',
+  'ברביקיו',
+  'מיונז',
+];
 
-const COFFEE_SELECT_OPTIONS = {
-  size: [
-    { value: 'small', label: 'קטן' },
-    { value: 'regular', label: 'רגיל' },
-    { value: 'large', label: 'גדול (+₪3)' },
-  ],
-  milk: [
-    { value: 'regular', label: 'רגיל' },
-    { value: 'soy', label: 'סויה (+₪2)' },
-    { value: 'oat', label: 'שיבולת (+₪2)' },
-  ],
+const PICKLE_OPTIONS = [
+  'מלפפון חמוץ',
+  'לפת',
+  'זיתים',
+  'פלפל חריף',
+];
+const SALAD_OPTION_SET = new Set(SALAD_OPTIONS);
+const SAUCE_OPTION_SET = new Set(SAUCE_OPTIONS);
+const PICKLE_OPTION_SET = new Set(PICKLE_OPTIONS);
+
+const PAID_ADDONS = [
+  { id: 'hummus', label: 'חומוס', price: 6 },
+  { id: 'egg', label: 'ביצה קשה', price: 5 },
+  { id: 'double-meat', label: 'בשר כפול', price: 18 },
+];
+const PAID_ADDON_IDS = new Set(PAID_ADDONS.map((addon) => addon.id));
+const PAID_ADDON_BY_ID = new Map(PAID_ADDONS.map((addon) => [addon.id, addon]));
+
+const DEFAULT_SANDWICH_OPTIONS = {
+  salads: [],
+  sauces: [],
+  pickles: [],
+  paidAddons: [],
 };
 
 const menuNodes = Array.from(document.querySelectorAll('#menu [data-item-id]'));
@@ -122,7 +133,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-1';
+const BUILD_VERSION = '20260228-2';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -272,64 +283,78 @@ function parseItemData(node) {
   const name = node.dataset.itemName;
   const price = Number(node.dataset.itemPrice || 0);
   if (!id || !name || Number.isNaN(price)) return null;
-  return { id, name, price, node, isCoffee: COFFEE_ITEM_IDS.has(id) };
+  return { id, name, price, node, isSandwich: SANDWICH_ITEM_IDS.has(id) };
 }
 
-function isCoffeeItem(itemId) {
-  return COFFEE_ITEM_IDS.has(itemId);
+function isSandwichItem(itemId) {
+  return SANDWICH_ITEM_IDS.has(itemId);
 }
 
-function normalizeCoffeeOptions(options) {
+function sanitizeSelection(values, allowedValues) {
+  if (!Array.isArray(values)) return [];
+  const normalized = [];
+  values.forEach((value) => {
+    const safeValue = String(value);
+    if (allowedValues.has(safeValue) && !normalized.includes(safeValue)) {
+      normalized.push(safeValue);
+    }
+  });
+  return normalized;
+}
+
+function normalizeSandwichOptions(options) {
   const raw = options || {};
-  const size = ['small', 'regular', 'large'].includes(raw.size)
-    ? raw.size
-    : 'small';
-  const milk = ['regular', 'soy', 'oat'].includes(raw.milk)
-    ? raw.milk
-    : 'regular';
+  const salads = sanitizeSelection(raw.salads, SALAD_OPTION_SET);
+  const sauces = sanitizeSelection(raw.sauces, SAUCE_OPTION_SET);
+  const pickles = sanitizeSelection(raw.pickles, PICKLE_OPTION_SET);
+  const paidAddons = sanitizeSelection(raw.paidAddons, PAID_ADDON_IDS);
   return {
-    size,
-    milk,
-    extraShot: Boolean(raw.extraShot),
-    vanilla: Boolean(raw.vanilla),
+    salads,
+    sauces,
+    pickles,
+    paidAddons,
   };
 }
 
 function copyOptions(options) {
-  return { ...normalizeCoffeeOptions(options) };
+  const normalized = normalizeSandwichOptions(options);
+  return {
+    salads: [...normalized.salads],
+    sauces: [...normalized.sauces],
+    pickles: [...normalized.pickles],
+    paidAddons: [...normalized.paidAddons],
+  };
 }
 
 function optionModifiers(options) {
   if (!options) {
-    return { sizeModifier: 0, milkModifier: 0, addonModifier: 0 };
+    return { addonModifier: 0 };
   }
 
-  const normalized = normalizeCoffeeOptions(options);
-  const sizeModifier = normalized.size === 'large' ? 3 : 0;
-  const milkModifier =
-    normalized.milk === 'soy' || normalized.milk === 'oat' ? 2 : 0;
-  const addonModifier =
-    (normalized.extraShot ? 3 : 0) + (normalized.vanilla ? 2 : 0);
-
-  return { sizeModifier, milkModifier, addonModifier };
+  const normalized = normalizeSandwichOptions(options);
+  const addonModifier = normalized.paidAddons.reduce((sum, addonId) => {
+    const addon = PAID_ADDON_BY_ID.get(addonId);
+    return sum + (addon ? addon.price : 0);
+  }, 0);
+  return { addonModifier };
 }
 
 function optionsEqual(a, b) {
   if (!a && !b) return true;
   if (!a || !b) return false;
-  const left = normalizeCoffeeOptions(a);
-  const right = normalizeCoffeeOptions(b);
+  const left = normalizeSandwichOptions(a);
+  const right = normalizeSandwichOptions(b);
   return (
-    left.size === right.size &&
-    left.milk === right.milk &&
-    left.extraShot === right.extraShot &&
-    left.vanilla === right.vanilla
+    left.salads.join('|') === right.salads.join('|') &&
+    left.sauces.join('|') === right.sauces.join('|') &&
+    left.pickles.join('|') === right.pickles.join('|') &&
+    left.paidAddons.join('|') === right.paidAddons.join('|')
   );
 }
 
 function optionPrice(options) {
-  const { sizeModifier, milkModifier, addonModifier } = optionModifiers(options);
-  return sizeModifier + milkModifier + addonModifier;
+  const { addonModifier } = optionModifiers(options);
+  return addonModifier;
 }
 
 function lineUnitPrice(line) {
@@ -337,11 +362,11 @@ function lineUnitPrice(line) {
 }
 
 function computeMenuItemPricing(item) {
-  const options = item.isCoffee ? readCoffeeOptionsFromMenu(item.id) : null;
-  const { sizeModifier, milkModifier, addonModifier } = optionModifiers(options);
+  const options = item.isSandwich ? readSandwichOptionsFromMenu(item.id) : null;
+  const { addonModifier } = optionModifiers(options);
   const basePrice = item.price;
-  const finalPrice = basePrice + sizeModifier + milkModifier + addonModifier;
-  return { basePrice, sizeModifier, milkModifier, addonModifier, finalPrice };
+  const finalPrice = basePrice + addonModifier;
+  return { basePrice, addonModifier, finalPrice };
 }
 
 function updateMenuItemPrice(itemId) {
@@ -351,8 +376,6 @@ function updateMenuItemPrice(itemId) {
   const pricing = computeMenuItemPricing(item);
   menuItemPricing.set(itemId, pricing);
   item.node.dataset.basePrice = String(pricing.basePrice);
-  item.node.dataset.sizeModifier = String(pricing.sizeModifier);
-  item.node.dataset.milkModifier = String(pricing.milkModifier);
   item.node.dataset.addonModifier = String(pricing.addonModifier);
 
   const priceElement = item.node.querySelector('.price-badge');
@@ -601,77 +624,110 @@ function setCustomSelectValue(inputNode, value, emitChange = false) {
   if (hiddenInput) hiddenInput.value = value;
 }
 
-function buildCoffeeOptionsEditor(itemId) {
+function renderOptionChecks(groupClass, options, selectedValues, withPrice = false) {
+  const selectedSet = new Set(selectedValues);
+  return options
+    .map((option) => {
+      const value = typeof option === 'string' ? option : option.id;
+      const label = typeof option === 'string' ? option : option.label;
+      const suffix =
+        withPrice && typeof option !== 'string' ? ` (+${toShekel(option.price)})` : '';
+      const checked = selectedSet.has(value) ? 'checked' : '';
+      const addonData =
+        withPrice && typeof option !== 'string'
+          ? ` data-addon-id="${option.id}" data-addon-price="${option.price}"`
+          : '';
+      return `
+        <label class="shawarma-check">
+          <input type="checkbox" class="${groupClass}" value="${value}"${addonData} ${checked} />
+          ${label}${suffix}
+        </label>
+      `;
+    })
+    .join('');
+}
+
+function buildSandwichOptionsEditor(itemId) {
   const options = copyOptions(
-    state.lastOptions[itemId] || DEFAULT_COFFEE_OPTIONS,
+    state.lastOptions[itemId] || DEFAULT_SANDWICH_OPTIONS,
   );
 
   const wrapper = document.createElement('div');
-  wrapper.className = 'coffee-options';
+  wrapper.className = 'shawarma-options';
   wrapper.dataset.itemId = itemId;
   wrapper.innerHTML = `
-    <div class="size-row">
-      <label class="option-label" for="coffee-size-${itemId}-trigger">גודל</label>
-      <div class="select-wrap">
-        ${customSelectMarkup({
-          id: `coffee-size-${itemId}`,
-          inputClass: 'coffee-size',
-          options: COFFEE_SELECT_OPTIONS.size,
-          value: options.size,
-        })}
+    <div class="shawarma-group">
+      <div class="option-label">סלטים (בחירה חופשית)</div>
+      <div class="checks-wrap">
+        ${renderOptionChecks('salad-choice', SALAD_OPTIONS, options.salads)}
       </div>
     </div>
-    <div class="milk-row">
-      <label class="option-label" for="coffee-milk-${itemId}-trigger">חלב</label>
-      <div class="select-wrap">
-        ${customSelectMarkup({
-          id: `coffee-milk-${itemId}`,
-          inputClass: 'coffee-milk',
-          options: COFFEE_SELECT_OPTIONS.milk,
-          value: options.milk,
-        })}
+    <div class="shawarma-group">
+      <div class="option-label">רטבים (בחירה חופשית)</div>
+      <div class="checks-wrap">
+        ${renderOptionChecks('sauce-choice', SAUCE_OPTIONS, options.sauces)}
       </div>
     </div>
-    <div class="addons-row">
-      <label class="coffee-check">
-        <input type="checkbox" class="coffee-shot" />
-        שוט נוסף (+₪3)
-      </label>
-      <label class="coffee-check">
-        <input type="checkbox" class="coffee-vanilla" />
-        סירופ וניל (+₪2)
-      </label>
+    <div class="shawarma-group">
+      <div class="option-label">חמוצים (בחירה חופשית)</div>
+      <div class="checks-wrap">
+        ${renderOptionChecks('pickle-choice', PICKLE_OPTIONS, options.pickles)}
+      </div>
+    </div>
+    <div class="shawarma-group">
+      <div class="option-label">תוספת בתשלום</div>
+      <div class="checks-wrap">
+        ${renderOptionChecks('paid-addon', PAID_ADDONS, options.paidAddons, true)}
+      </div>
     </div>
   `;
 
-  const shotCheckbox = wrapper.querySelector('.coffee-shot');
-  const vanillaCheckbox = wrapper.querySelector('.coffee-vanilla');
-  shotCheckbox.checked = options.extraShot;
-  vanillaCheckbox.checked = options.vanilla;
-  initCustomSelects(wrapper);
-
   wrapper.addEventListener('change', () => {
-    state.lastOptions[itemId] = readCoffeeOptionsFromMenu(itemId);
+    state.lastOptions[itemId] = readSandwichOptionsFromMenu(itemId);
     updateMenuItemPrice(itemId);
     saveState();
   });
-  shotCheckbox.addEventListener('click', () => updateMenuItemPrice(itemId));
-  vanillaCheckbox.addEventListener('click', () => updateMenuItemPrice(itemId));
 
   return wrapper;
 }
 
-function readCoffeeOptionsFromMenu(itemId) {
-  const root = menuNodeById(itemId)?.querySelector('.coffee-options');
-  if (!root) return copyOptions(DEFAULT_COFFEE_OPTIONS);
-
+function readSandwichOptionsFromRoot(root) {
+  if (!root) return copyOptions(DEFAULT_SANDWICH_OPTIONS);
   const options = {
-    size: root.querySelector('.coffee-size')?.value,
-    milk: root.querySelector('.coffee-milk')?.value,
-    extraShot: root.querySelector('.coffee-shot')?.checked,
-    vanilla: root.querySelector('.coffee-vanilla')?.checked,
+    salads: Array.from(root.querySelectorAll('.salad-choice:checked')).map(
+      (input) => input.value,
+    ),
+    sauces: Array.from(root.querySelectorAll('.sauce-choice:checked')).map(
+      (input) => input.value,
+    ),
+    pickles: Array.from(root.querySelectorAll('.pickle-choice:checked')).map(
+      (input) => input.value,
+    ),
+    paidAddons: Array.from(root.querySelectorAll('.paid-addon:checked')).map(
+      (input) => input.value,
+    ),
   };
-  return normalizeCoffeeOptions(options);
+  return normalizeSandwichOptions(options);
+}
+
+function readSandwichOptionsFromMenu(itemId) {
+  const root = menuNodeById(itemId)?.querySelector('.shawarma-options');
+  return readSandwichOptionsFromRoot(root);
+}
+
+function applySandwichSelections(root, options) {
+  if (!root) return;
+  const normalized = normalizeSandwichOptions(options);
+  const setValues = (selector, selectedValues) => {
+    const selectedSet = new Set(selectedValues);
+    root.querySelectorAll(selector).forEach((input) => {
+      input.checked = selectedSet.has(input.value);
+    });
+  };
+  setValues('.salad-choice', normalized.salads);
+  setValues('.sauce-choice', normalized.sauces);
+  setValues('.pickle-choice', normalized.pickles);
+  setValues('.paid-addon', normalized.paidAddons);
 }
 
 function buildQuantityControls(item) {
@@ -708,17 +764,15 @@ function attachControlsToMenuItem(item) {
   priceElement.classList.add('price-badge');
 
   const actions = document.createElement('div');
-  actions.className = item.node.classList.contains('combo')
-    ? 'combo-actions buy-row'
-    : 'menu-item-actions buy-row';
+  actions.className = 'menu-item-actions buy-row';
   priceElement.replaceWith(actions);
   actions.append(buildQuantityControls(item), priceElement);
 
-  if (item.isCoffee) {
+  if (item.isSandwich) {
     item.node.classList.add('menu-item-with-options');
-    const textColumn = item.node.querySelector(':scope > span');
+    const textColumn = item.node.querySelector(':scope > .menu-item-main');
     if (textColumn) {
-      textColumn.append(buildCoffeeOptionsEditor(item.id));
+      textColumn.append(buildSandwichOptionsEditor(item.id));
     }
   }
 }
@@ -742,11 +796,11 @@ function addItemFromMenu(itemId) {
   const item = itemsById.get(itemId);
   if (!item) return;
 
-  const options = item.isCoffee
-    ? readCoffeeOptionsFromMenu(itemId)
+  const options = item.isSandwich
+    ? readSandwichOptionsFromMenu(itemId)
     : null;
 
-  if (item.isCoffee) {
+  if (item.isSandwich) {
     state.lastOptions[itemId] = copyOptions(options);
   }
 
@@ -776,8 +830,8 @@ function removeItemFromMenu(itemId) {
   if (getItemQuantity(itemId) === 0) return;
 
   let target = null;
-  if (item.isCoffee) {
-    const selectedOptions = readCoffeeOptionsFromMenu(itemId);
+  if (item.isSandwich) {
+    const selectedOptions = readSandwichOptionsFromMenu(itemId);
     target = state.cartLines.find(
       (line) =>
         line.itemId === itemId &&
@@ -821,7 +875,7 @@ function sanitizeCartLine(line) {
     name: item.name,
     basePrice: item.price,
     quantity: Math.floor(quantity),
-    options: item.isCoffee ? normalizeCoffeeOptions(line.options) : null,
+    options: item.isSandwich ? normalizeSandwichOptions(line.options) : null,
     note: typeof line.note === 'string' ? line.note : '',
   };
 }
@@ -856,13 +910,20 @@ function totalFromEntries(entries) {
 
 function optionsSummary(line) {
   if (!line.options) return '';
-  const options = normalizeCoffeeOptions(line.options);
-  const parts = [
-    `גודל: ${COFFEE_LABELS.size[options.size]}`,
-    `חלב: ${COFFEE_LABELS.milk[options.milk]}`,
-    `שוט נוסף: ${options.extraShot ? 'כן (+₪3)' : 'לא'}`,
-    `וניל: ${options.vanilla ? 'כן (+₪2)' : 'לא'}`,
-  ];
+  const options = normalizeSandwichOptions(line.options);
+  const parts = [];
+  if (options.salads.length > 0) parts.push(`סלטים: ${options.salads.join(', ')}`);
+  if (options.sauces.length > 0) parts.push(`רטבים: ${options.sauces.join(', ')}`);
+  if (options.pickles.length > 0) parts.push(`חמוצים: ${options.pickles.join(', ')}`);
+  if (options.paidAddons.length > 0) {
+    const paidText = options.paidAddons
+      .map((addonId) => {
+        const addon = PAID_ADDON_BY_ID.get(addonId);
+        return addon ? `${addon.label} (+${toShekel(addon.price)})` : addonId;
+      })
+      .join(', ');
+    parts.push(`תוספות בתשלום: ${paidText}`);
+  }
   return parts.join(' | ');
 }
 
@@ -892,6 +953,7 @@ function renderCart() {
 
   entries.forEach((entry) => {
     const unitPrice = lineUnitPrice(entry);
+    const optionSummaryText = optionsSummary(entry);
     const line = document.createElement('div');
     line.className = 'cart-item';
     line.innerHTML = `
@@ -899,8 +961,8 @@ function renderCart() {
         <div class="cart-item-name">${escapeHtml(entry.name)}</div>
         <div class="cart-item-meta">${entry.quantity} x ${toShekel(unitPrice)}</div>
         ${
-          entry.options
-            ? `<div class="cart-item-options">${escapeHtml(optionsSummary(entry))}</div>`
+          optionSummaryText
+            ? `<div class="cart-item-options">${escapeHtml(optionSummaryText)}</div>`
             : ''
         }
         ${
@@ -1149,10 +1211,7 @@ function lineWhatsappText(line) {
   const parts = [base];
 
   if (line.options) {
-    const options = normalizeCoffeeOptions(line.options);
-    parts.push(
-      `  אפשרויות: גודל ${COFFEE_LABELS.size[options.size]}, חלב ${COFFEE_LABELS.milk[options.milk]}, שוט נוסף ${options.extraShot ? 'כן' : 'לא'}, וניל ${options.vanilla ? 'כן' : 'לא'}`,
-    );
+    parts.push(`  אפשרויות: ${optionsSummary(line)}`);
   }
 
   if (line.note.trim()) {
@@ -1185,21 +1244,16 @@ function buildWhatsappMessage(entries, total) {
 function buildItemModifiers(line) {
   if (!line.options) return {};
 
-  const options = normalizeCoffeeOptions(line.options);
-  const addons = [];
-  if (options.extraShot) addons.push('extra_shot');
-  if (options.vanilla) addons.push('vanilla');
-
-  const modifiers = {
-    size: options.size,
-    milk: options.milk,
+  const options = normalizeSandwichOptions(line.options);
+  return {
+    salads: [...options.salads],
+    sauces: [...options.sauces],
+    pickles: [...options.pickles],
+    paidAddons: options.paidAddons
+      .map((addonId) => PAID_ADDON_BY_ID.get(addonId))
+      .filter(Boolean)
+      .map((addon) => ({ id: addon.id, label: addon.label, price: addon.price })),
   };
-
-  if (addons.length > 0) {
-    modifiers.addons = addons;
-  }
-
-  return modifiers;
 }
 
 function buildFirestoreOrderPayload(entries, total) {
@@ -1264,7 +1318,7 @@ function buildLineEditorModal() {
       <h3 id="lineEditTitle">עריכת פריט</h3>
       <div id="lineEditFields"></div>
       <label for="lineEditNote">הערה לפריט</label>
-      <textarea id="lineEditNote" placeholder="ללא סוכר / חם מאוד / אחר..."></textarea>
+      <textarea id="lineEditNote" placeholder="בלי בצל / בלי חריף / טחינה בצד..."></textarea>
       <div class="modal-actions">
         <button type="button" class="btn secondary" id="lineEditCancel">ביטול</button>
         <button type="button" class="btn" id="lineEditSave">שמירה</button>
@@ -1321,45 +1375,36 @@ function openLineEditor(lineId) {
   ui.lineEditor.noteInput.value = line.note;
   ui.lineEditor.content.innerHTML = '';
 
-  if (isCoffeeItem(line.itemId)) {
-    const options = normalizeCoffeeOptions(line.options);
+  if (isSandwichItem(line.itemId)) {
+    const options = normalizeSandwichOptions(line.options);
     ui.lineEditor.content.innerHTML = `
-      <div class="coffee-options-grid modal-options-grid">
-        <label>
-          גודל
-          <div class="select-wrap">
-            ${customSelectMarkup({
-              id: 'lineEditSize',
-              inputClass: 'select',
-              options: COFFEE_SELECT_OPTIONS.size,
-              value: options.size,
-            })}
+      <div class="shawarma-options modal-options-grid">
+        <div class="shawarma-group">
+          <div class="option-label">סלטים (בחירה חופשית)</div>
+          <div class="checks-wrap">
+            ${renderOptionChecks('salad-choice', SALAD_OPTIONS, options.salads)}
           </div>
-        </label>
-        <label>
-          חלב
-          <div class="select-wrap">
-            ${customSelectMarkup({
-              id: 'lineEditMilk',
-              inputClass: 'select',
-              options: COFFEE_SELECT_OPTIONS.milk,
-              value: options.milk,
-            })}
+        </div>
+        <div class="shawarma-group">
+          <div class="option-label">רטבים (בחירה חופשית)</div>
+          <div class="checks-wrap">
+            ${renderOptionChecks('sauce-choice', SAUCE_OPTIONS, options.sauces)}
           </div>
-        </label>
-        <label class="coffee-check">
-          <input type="checkbox" id="lineEditShot" />
-          שוט נוסף (+₪3)
-        </label>
-        <label class="coffee-check">
-          <input type="checkbox" id="lineEditVanilla" />
-          סירופ וניל (+₪2)
-        </label>
+        </div>
+        <div class="shawarma-group">
+          <div class="option-label">חמוצים (בחירה חופשית)</div>
+          <div class="checks-wrap">
+            ${renderOptionChecks('pickle-choice', PICKLE_OPTIONS, options.pickles)}
+          </div>
+        </div>
+        <div class="shawarma-group">
+          <div class="option-label">תוספת בתשלום</div>
+          <div class="checks-wrap">
+            ${renderOptionChecks('paid-addon', PAID_ADDONS, options.paidAddons, true)}
+          </div>
+        </div>
       </div>
     `;
-    initCustomSelects(ui.lineEditor.content);
-    ui.lineEditor.content.querySelector('#lineEditShot').checked = options.extraShot;
-    ui.lineEditor.content.querySelector('#lineEditVanilla').checked = options.vanilla;
   } else {
     ui.lineEditor.content.innerHTML =
       '<p class="field-hint">לפריט זה אין אפשרויות נוספות. ניתן לעדכן הערה בלבד.</p>';
@@ -1374,20 +1419,12 @@ function saveLineEditor() {
   );
   if (!line) return;
 
-  if (isCoffeeItem(line.itemId)) {
-    line.options = normalizeCoffeeOptions({
-      size: ui.lineEditor.content.querySelector('#lineEditSize')?.value,
-      milk: ui.lineEditor.content.querySelector('#lineEditMilk')?.value,
-      extraShot: ui.lineEditor.content.querySelector('#lineEditShot')?.checked,
-      vanilla: ui.lineEditor.content.querySelector('#lineEditVanilla')?.checked,
-    });
+  if (isSandwichItem(line.itemId)) {
+    line.options = readSandwichOptionsFromRoot(ui.lineEditor.content);
     state.lastOptions[line.itemId] = copyOptions(line.options);
-    const menuEditor = menuNodeById(line.itemId)?.querySelector('.coffee-options');
+    const menuEditor = menuNodeById(line.itemId)?.querySelector('.shawarma-options');
     if (menuEditor) {
-      setCustomSelectValue(menuEditor.querySelector('.coffee-size'), line.options.size);
-      setCustomSelectValue(menuEditor.querySelector('.coffee-milk'), line.options.milk);
-      menuEditor.querySelector('.coffee-shot').checked = line.options.extraShot;
-      menuEditor.querySelector('.coffee-vanilla').checked = line.options.vanilla;
+      applySandwichSelections(menuEditor, line.options);
       updateMenuItemPrice(line.itemId);
     }
   }
@@ -1405,8 +1442,9 @@ function renderConfirmContent(entries, total) {
   const summaryRows = entries
     .map((line) => {
       const unit = lineUnitPrice(line);
-      const optionBlock = line.options
-        ? `<div class="confirm-subline">${escapeHtml(optionsSummary(line))}</div>`
+      const optionSummaryText = optionsSummary(line);
+      const optionBlock = optionSummaryText
+        ? `<div class="confirm-subline">${escapeHtml(optionSummaryText)}</div>`
         : '';
       const noteBlock = line.note.trim()
         ? `<div class="confirm-subline">הערה לפריט: ${escapeHtml(line.note.trim())}</div>`
@@ -1569,8 +1607,8 @@ function initItems() {
   mergeDuplicateLines();
 
   itemsById.forEach((item) => {
-    if (item.isCoffee && !state.lastOptions[item.id]) {
-      state.lastOptions[item.id] = copyOptions(DEFAULT_COFFEE_OPTIONS);
+    if (item.isSandwich && !state.lastOptions[item.id]) {
+      state.lastOptions[item.id] = copyOptions(DEFAULT_SANDWICH_OPTIONS);
     }
     attachControlsToMenuItem(item);
     updateMenuItemPrice(item.id);

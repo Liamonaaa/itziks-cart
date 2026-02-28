@@ -151,24 +151,41 @@ function formatPickupText(pickup) {
   return '--';
 }
 
-function addonsToText(addons) {
-  if (!Array.isArray(addons) || addons.length === 0) return '';
-  const translated = addons.map((addon) => {
-    if (addon === 'extra_shot') return 'שוט נוסף';
-    if (addon === 'vanilla') return 'וניל';
-    return addon;
-  });
-  return translated.join(', ');
-}
-
 function formatModifiers(modifiers) {
   if (!modifiers || typeof modifiers !== 'object') return '';
 
   const parts = [];
+  if (Array.isArray(modifiers.salads) && modifiers.salads.length > 0) {
+    parts.push(`סלטים: ${modifiers.salads.join(', ')}`);
+  }
+  if (Array.isArray(modifiers.sauces) && modifiers.sauces.length > 0) {
+    parts.push(`רטבים: ${modifiers.sauces.join(', ')}`);
+  }
+  if (Array.isArray(modifiers.pickles) && modifiers.pickles.length > 0) {
+    parts.push(`חמוצים: ${modifiers.pickles.join(', ')}`);
+  }
+
+  if (Array.isArray(modifiers.paidAddons) && modifiers.paidAddons.length > 0) {
+    const paidText = modifiers.paidAddons
+      .map((addon) => {
+        if (!addon) return '';
+        if (typeof addon === 'string') return addon;
+        const label = addon.label || addon.id || 'תוספת';
+        const price = Number(addon.price);
+        return Number.isFinite(price) ? `${label} (+${formatMoney(price)})` : label;
+      })
+      .filter(Boolean)
+      .join(', ');
+    if (paidText) parts.push(`תוספות בתשלום: ${paidText}`);
+  }
+
+  // Backward compatibility with older coffee orders.
   if (modifiers.size) parts.push(`גודל: ${modifiers.size}`);
   if (modifiers.milk) parts.push(`חלב: ${modifiers.milk}`);
-  const addonsText = addonsToText(modifiers.addons);
-  if (addonsText) parts.push(`תוספות: ${addonsText}`);
+  if (Array.isArray(modifiers.addons) && modifiers.addons.length > 0) {
+    parts.push(`תוספות: ${modifiers.addons.join(', ')}`);
+  }
+
   return parts.join(' | ');
 }
 
@@ -305,7 +322,7 @@ function notifyBrowser(message) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  new Notification('העגלה של איציק', {
+  new Notification('חזי בצומת', {
     body: message,
   });
 }
