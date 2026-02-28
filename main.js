@@ -6,13 +6,13 @@ const WHATSAPP_NUMBER = '972500000000';
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
-  0: { open: '11:00', close: '23:00', label: 'יום א׳' },
-  1: { open: '11:00', close: '23:00', label: 'יום ב׳' },
-  2: { open: '11:00', close: '23:00', label: 'יום ג׳' },
-  3: { open: '11:00', close: '23:00', label: 'יום ד׳' },
-  4: { open: '11:00', close: '23:00', label: 'יום ה׳' },
-  5: { open: '11:00', close: '16:00', label: 'יום ו׳' },
-  6: { open: '11:00', close: '23:30', label: 'שבת' },
+  0: { open: '12:00', close: '00:00', label: 'יום א׳' },
+  1: { open: '12:00', close: '00:00', label: 'יום ב׳' },
+  2: { open: '12:00', close: '00:00', label: 'יום ג׳' },
+  3: { open: '12:00', close: '00:00', label: 'יום ד׳' },
+  4: { open: '12:00', close: '00:00', label: 'יום ה׳' },
+  5: { open: '12:00', close: '00:00', label: 'יום ו׳' },
+  6: { open: '12:00', close: '00:00', label: 'שבת' },
 };
 
 const BUSINESS_NAME = 'חזי בצומת';
@@ -21,6 +21,8 @@ const PHONE = '050-0000000';
 const STORAGE_KEY = 'itziks-cart-order-v2';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
+const ORDERING_HOURS_LABEL = 'פתוחים כל יום 12:00–00:00';
+const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות בין 12:00 ל-00:00';
 
 const SANDWICH_ITEM_IDS = new Set([
   'pita-veal',
@@ -133,7 +135,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-2';
+const BUILD_VERSION = '20260228-3';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -1062,6 +1064,9 @@ function hoursForDate(date) {
 
   const closeTime = new Date(date);
   closeTime.setHours(closeHour, closeMinute, 0, 0);
+  if (closeTime <= openTime) {
+    closeTime.setDate(closeTime.getDate() + 1);
+  }
 
   return { ...def, openTime, closeTime };
 }
@@ -1135,7 +1140,7 @@ function selectedPickupLabel() {
 
 function refreshPickupOptions() {
   ui.pickupStatus = computePickupStatus();
-  const { canCheckout, slots, nextOpen } = ui.pickupStatus;
+  const { canCheckout, slots } = ui.pickupStatus;
 
   pickupSelect.innerHTML = '<option value="">בחרו שעה</option>';
   slots.forEach((slot) => {
@@ -1156,12 +1161,10 @@ function refreshPickupOptions() {
 
   if (canCheckout) {
     pickupSelect.disabled = false;
-    pickupHint.textContent = 'זמני איסוף זמינים ב־15 דקות קדימה (עד שעתיים).';
+    pickupHint.textContent = `${ORDERING_HOURS_LABEL}. זמני איסוף זמינים ב־15 דקות קדימה (עד שעתיים).`;
   } else {
     pickupSelect.disabled = true;
-    pickupHint.textContent = nextOpen
-      ? `כרגע אנחנו מחוץ לשעות הפעילות. פתיחה הבאה: ${formatDayAndTime(nextOpen)}.`
-      : 'כרגע לא ניתן להזמין.';
+    pickupHint.textContent = CLOSED_ORDERING_MESSAGE;
   }
 
   sendOrderButton.disabled = !canCheckout;
@@ -1191,9 +1194,7 @@ function validateOrder() {
   if (!isValidIsraeliPhone(state.phone)) return 'יש להזין מספר טלפון ישראלי תקין.';
 
   if (!ui.pickupStatus.canCheckout) {
-    return ui.pickupStatus.nextOpen
-      ? `כרגע אין קבלת הזמנות. פתיחה הבאה: ${formatDayAndTime(ui.pickupStatus.nextOpen)}.`
-      : 'כרגע לא ניתן להזמין.';
+    return CLOSED_ORDERING_MESSAGE;
   }
 
   if (!state.pickup) return 'יש לבחור שעת איסוף.';

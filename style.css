@@ -96,12 +96,23 @@ header {
   order: 2;
 }
 
+.topbar-hours {
+  order: 1;
+  background: #fff;
+  border: 1px solid var(--accent-3);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.86rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 .nav-actions {
   display: flex;
   gap: 0.6rem;
   flex-wrap: wrap;
   justify-content: flex-end;
-  order: 1;
+  order: 0;
 }
 
 .btn {
@@ -587,6 +598,16 @@ footer a {
 }
 
 @media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar-hours {
+    width: 100%;
+    text-align: center;
+    order: 3;
+  }
+
   .nav-actions .btn {
     padding: 0.45rem 0.85rem;
     font-size: 0.9rem;
