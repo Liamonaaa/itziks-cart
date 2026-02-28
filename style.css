@@ -871,6 +871,11 @@ select::-ms-expand {
   margin-top: 0.35rem;
 }
 
+.last-order-link {
+  width: 100%;
+  margin-top: -0.1rem;
+}
+
 .menu-note {
   color: var(--muted);
   margin-top: -0.6rem;

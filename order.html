@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>סטטוס הזמנה | חזי בצומת</title>
+    <meta name="description" content="מעקב סטטוס הזמנה בזמן אמת - חזי בצומת" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./order.css?v=20260228-1" />
+  </head>
+  <body>
+    <main class="order-page">
+      <header class="order-top">
+        <div>
+          <p class="eyebrow">חזי בצומת</p>
+          <h1>סטטוס הזמנה</h1>
+        </div>
+        <a class="back-link" href="./index.html">חזרה לתפריט</a>
+      </header>
+
+      <section class="card" id="loadingCard">
+        <p>טוענים הזמנה...</p>
+      </section>
+
+      <section class="card not-found" id="notFoundCard" hidden>
+        <h2>הזמנה לא נמצאה</h2>
+        <p id="notFoundMessage">לא הצלחנו למצוא את ההזמנה המבוקשת.</p>
+      </section>
+
+      <section class="content" id="orderContent" hidden>
+        <section class="card status-card">
+          <div class="status-head">
+            <div>
+              <p class="label">מספר הזמנה</p>
+              <strong id="orderNumber">------</strong>
+            </div>
+            <span class="status-badge" id="orderStatusBadge">חדש</span>
+          </div>
+          <p class="live-note">מתעדכן בזמן אמת מתוך מערכת המנהל.</p>
+          <p class="cancelled-note" id="cancelledNote" hidden>
+            ההזמנה בוטלה. ניתן ליצור קשר עם המקום לעדכון.
+          </p>
+          <ol class="status-timeline" id="statusTimeline">
+            <li data-step="new">חדש</li>
+            <li data-step="in_progress">בהכנה</li>
+            <li data-step="ready">מוכן</li>
+            <li data-step="delivered">נמסר</li>
+          </ol>
+        </section>
+
+        <section class="card info-grid">
+          <article>
+            <p class="label">שעת איסוף</p>
+            <strong id="pickupText">--</strong>
+          </article>
+          <article>
+            <p class="label">שם</p>
+            <strong id="customerName">--</strong>
+          </article>
+          <article>
+            <p class="label">טלפון</p>
+            <strong id="customerPhone">--</strong>
+          </article>
+          <article>
+            <p class="label">הערות</p>
+            <strong id="customerNotes">ללא</strong>
+          </article>
+        </section>
+
+        <section class="card">
+          <h2>פריטים בהזמנה</h2>
+          <ul class="items-list" id="orderItems"></ul>
+          <div class="total-row">
+            <span>סה״כ</span>
+            <strong id="orderTotal">₪0</strong>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./order.js?v=20260228-1"></script>
+  </body>
+</html>

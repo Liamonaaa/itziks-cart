@@ -19,6 +19,7 @@ const BUSINESS_NAME = 'חזי בצומת';
 const BUSINESS_ADDRESS = 'צומת אבן יהודה';
 const PHONE = '050-0000000';
 const STORAGE_KEY = 'itziks-cart-order-v2';
+const LAST_ORDER_ID_KEY = 'itziks-cart-last-order-id';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
 const ORDERING_HOURS_LABEL = 'פתוחים כל יום 12:00–00:00';
@@ -98,6 +99,7 @@ const customerNameInput = document.getElementById('customerName');
 const customerPhoneInput = document.getElementById('customerPhone');
 const customerNotesInput = document.getElementById('customerNotes');
 const formErrorElement = document.getElementById('formError');
+const lastOrderLink = document.getElementById('lastOrderLink');
 
 const backToTop = document.getElementById('backToTop');
 const toast = document.getElementById('toast');
@@ -1120,6 +1122,41 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState()));
 }
 
+function buildOrderStatusUrl(orderId) {
+  const url = new URL('./order.html', window.location.href);
+  url.searchParams.set('id', orderId);
+  return url.toString();
+}
+
+function storeLastOrderId(orderId) {
+  if (!orderId) return;
+  try {
+    localStorage.setItem(LAST_ORDER_ID_KEY, orderId);
+  } catch (error) {
+    console.error('Failed to store last order id', error);
+  }
+}
+
+function readLastOrderId() {
+  try {
+    return localStorage.getItem(LAST_ORDER_ID_KEY) || '';
+  } catch (error) {
+    console.error('Failed to read last order id', error);
+    return '';
+  }
+}
+
+function syncLastOrderLink() {
+  if (!lastOrderLink) return;
+  const lastOrderId = readLastOrderId();
+  if (!lastOrderId) {
+    lastOrderLink.hidden = true;
+    return;
+  }
+  lastOrderLink.href = buildOrderStatusUrl(lastOrderId);
+  lastOrderLink.hidden = false;
+}
+
 function restoreState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
@@ -1661,11 +1698,21 @@ async function sendOrderToWhatsapp() {
   sendOrderButton.disabled = true;
 
   try {
-    await saveOrderToFirestore(orderPayload);
+    const orderRef = await saveOrderToFirestore(orderPayload);
+    const orderId = orderRef?.id;
+    if (orderId) {
+      storeLastOrderId(orderId);
+      syncLastOrderLink();
+    }
     formErrorElement.textContent = '';
     closeModal(ui.confirmModal.modal);
     resetCheckoutAfterSuccess();
-    showToast('הזמנה נשלחה', 3000);
+    showToast('הזמנה נשלחה ✅', 1200);
+    if (orderId) {
+      window.setTimeout(() => {
+        window.location.href = buildOrderStatusUrl(orderId);
+      }, 450);
+    }
   } catch (error) {
     console.error('Failed to save order to Firestore', {
       error,
@@ -1804,6 +1851,7 @@ function restoreInputs() {
 
 function init() {
   restoreState();
+  syncLastOrderLink();
   buildLineEditorModal();
   buildConfirmModal();
   initItems();
