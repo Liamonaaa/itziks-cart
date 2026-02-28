@@ -8,28 +8,34 @@ Function name: `onOrderCreatedSendSms`
 Message text: `הזמנתך התקבלה - חזי בצומת`
 Project: `itziks-cart`
 
-### 1) Generate FIREBASE_TOKEN locally (interactive, one-time)
+## CI Deploy (Service Account)
 
-Run these on your own machine terminal (not CI):
+### 1) Create Firebase Service Account Key (one-time)
 
-```bash
-npx firebase-tools login:ci
-```
+In Firebase Console:
 
-Copy the token printed in terminal.
+1. Go to **Project settings**.
+2. Open **Service accounts** tab.
+3. Click **Generate new private key**.
+4. Download the JSON file.
 
-### 2) Add GitHub repository secrets
+Copy the entire JSON content.
 
-In GitHub -> Settings -> Secrets and variables -> Actions, add:
+### 2) Add GitHub repository secret for CI auth
 
-- `FIREBASE_TOKEN`
+In GitHub -> **Settings** -> **Secrets and variables** -> **Actions**, add:
+
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON` = full service-account JSON content
+
+### 3) Add Twilio GitHub secrets
+
+In the same GitHub secrets screen, add:
+
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
 
-Note: Twilio secrets are kept in GitHub for convenience, but Firebase Functions reads runtime secrets from Firebase Secret Manager.
-
-### 3) Set Firebase Functions secrets (one-time, interactive)
+### 4) Set Firebase Functions runtime secrets (one-time, local interactive)
 
 Run locally while logged in to Firebase:
 
@@ -39,7 +45,7 @@ firebase functions:secrets:set TWILIO_AUTH_TOKEN --project itziks-cart
 firebase functions:secrets:set TWILIO_FROM_NUMBER --project itziks-cart
 ```
 
-### 4) Trigger deploy via GitHub Actions
+### 5) Trigger deploy via GitHub Actions
 
 - Open GitHub -> Actions -> `Deploy Firebase`
 - Click `Run workflow`
@@ -47,15 +53,15 @@ firebase functions:secrets:set TWILIO_FROM_NUMBER --project itziks-cart
 The workflow deploys:
 
 ```bash
-firebase deploy --only functions,firestore:rules --project itziks-cart --non-interactive
+firebase deploy --project itziks-cart --only functions,firestore:rules --non-interactive
 ```
 
-### 5) Verify deployment
+### 6) Verify deployment
 
 - Firebase Console -> Build -> Functions: `onOrderCreatedSendSms` is active.
 - Firebase Console -> Firestore -> `orders` collection exists.
 
-### 6) Smoke test
+### 7) Smoke test
 
 1. Place a new order with phone `05xxxxxxxx`.
 2. Confirm SMS was received.
