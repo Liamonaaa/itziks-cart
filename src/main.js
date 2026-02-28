@@ -1,6 +1,6 @@
 // עריכת וואטסאפ: עדכנו כאן את מספר היעד
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-import { db } from './firebase.js';
+import { db } from './src/firebase.js';
 
 const WHATSAPP_NUMBER = '972500000000';
 
@@ -1102,6 +1102,10 @@ function buildFirestoreOrderPayload(entries, total) {
 }
 
 async function saveOrderToFirestore(payload) {
+  if (!db) {
+    throw new Error('Firebase initialization failed: Firestore db is undefined.');
+  }
+
   const docRef = await addDoc(collection(db, 'orders'), payload);
   console.log('Order saved to Firestore with id:', docRef.id);
   return docRef;

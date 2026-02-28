@@ -1,4 +1,4 @@
-import { db, isFirebaseConfigured } from './src/firebase.js';
+import { db } from './src/firebase.js';
 const FIRESTORE_MODULE_URL =
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
@@ -61,7 +61,8 @@ function showToast(message, timeoutMs = 2600) {
 
 function showFatalError(error) {
   console.error('Admin runtime error:', error);
-  const message = 'שגיאה בטעינת מערכת המנהל. פתח קונסול.';
+  const detail = error?.message ? ` ${error.message}` : '';
+  const message = `שגיאה בטעינת מערכת המנהל. פתח קונסול.${detail}`;
 
   let errorNode = document.getElementById('adminFatalError');
   if (!errorNode) {
