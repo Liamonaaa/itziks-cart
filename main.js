@@ -88,9 +88,9 @@ const cartTotalElement = document.getElementById('cartTotal');
 const cartTotalInline = document.getElementById('cartTotalInline');
 const clearCartButton = document.getElementById('clearCartBtn');
 const sendOrderButton = document.getElementById('sendOrderBtn');
-const mobileCartToggle = document.getElementById('mobileCartToggle');
-const mobileCartCount = document.getElementById('mobileCartCount');
-const mobileCartBackdrop = document.getElementById('mobileCartBackdrop');
+let mobileCartButton = document.getElementById('mobileCartBtn');
+let mobileCartBadge = document.getElementById('mobileCartBadge');
+let mobileCartBackdrop = document.getElementById('mobileCartBackdrop');
 const mobileCartCloseButton = document.getElementById('mobileCartClose');
 
 const pickupSelect = document.getElementById('pickupTime');
@@ -137,7 +137,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-7';
+const BUILD_VERSION = '20260228-8';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -150,6 +150,46 @@ function toShekel(value) {
 
 function isMobileViewport() {
   return mobileViewportQuery.matches;
+}
+
+function ensureMobileCartElements() {
+  if (!mobileCartButton) {
+    console.warn('[mobile cart] #mobileCartBtn missing, creating fallback');
+    mobileCartButton = document.createElement('button');
+    mobileCartButton.id = 'mobileCartBtn';
+    mobileCartButton.className = 'mobile-cart-btn';
+    mobileCartButton.type = 'button';
+    mobileCartButton.setAttribute('aria-label', 'עגלה');
+    mobileCartButton.innerHTML = `
+      <span class="mobile-cart-icon" aria-hidden="true">\u{1F6D2}</span>
+      <span id="mobileCartBadge" class="mobile-cart-badge" aria-hidden="true" hidden>0</span>
+    `;
+    document.body.append(mobileCartButton);
+  }
+
+  if (!mobileCartBadge) {
+    console.warn('[mobile cart] #mobileCartBadge missing, creating fallback');
+    mobileCartBadge = document.createElement('span');
+    mobileCartBadge.id = 'mobileCartBadge';
+    mobileCartBadge.className = 'mobile-cart-badge';
+    mobileCartBadge.setAttribute('aria-hidden', 'true');
+    mobileCartBadge.hidden = true;
+    mobileCartBadge.textContent = '0';
+    mobileCartButton.append(mobileCartBadge);
+  }
+
+  if (!mobileCartBackdrop) {
+    console.warn('[mobile cart] #mobileCartBackdrop missing, creating fallback');
+    mobileCartBackdrop = document.createElement('div');
+    mobileCartBackdrop.id = 'mobileCartBackdrop';
+    mobileCartBackdrop.className = 'mobile-cart-backdrop';
+    mobileCartBackdrop.hidden = true;
+    document.body.append(mobileCartBackdrop);
+  }
+
+  mobileCartButton.setAttribute('aria-controls', 'cartPanel');
+  mobileCartButton.setAttribute('aria-haspopup', 'dialog');
+  mobileCartButton.setAttribute('aria-expanded', 'false');
 }
 
 function lockBodyScrollForMobileCart() {
@@ -172,7 +212,7 @@ function closeMobileCart(options = {}) {
   if (isMobileViewport()) {
     cartPanel.setAttribute('aria-hidden', 'true');
   }
-  mobileCartToggle?.setAttribute('aria-expanded', 'false');
+  mobileCartButton?.setAttribute('aria-expanded', 'false');
   if (mobileCartBackdrop) {
     mobileCartBackdrop.classList.remove('show');
     mobileCartBackdrop.hidden = true;
@@ -192,7 +232,7 @@ function openMobileCart() {
   cartPanel.setAttribute('aria-hidden', 'false');
   cartPanel.setAttribute('role', 'dialog');
   cartPanel.setAttribute('aria-modal', 'true');
-  mobileCartToggle?.setAttribute('aria-expanded', 'true');
+  mobileCartButton?.setAttribute('aria-expanded', 'true');
   if (mobileCartBackdrop) {
     mobileCartBackdrop.hidden = false;
     mobileCartBackdrop.classList.add('show');
@@ -202,8 +242,8 @@ function openMobileCart() {
 }
 
 function syncMobileCartLayout() {
-  if (mobileCartToggle) {
-    mobileCartToggle.style.display = isMobileViewport() ? 'inline-flex' : 'none';
+  if (mobileCartButton) {
+    mobileCartButton.style.display = isMobileViewport() ? 'flex' : 'none';
   }
 
   if (isMobileViewport()) {
@@ -214,7 +254,7 @@ function syncMobileCartLayout() {
     );
     cartPanel.setAttribute('role', 'dialog');
     cartPanel.setAttribute('aria-modal', 'true');
-    mobileCartToggle?.setAttribute(
+    mobileCartButton?.setAttribute(
       'aria-expanded',
       isOpen ? 'true' : 'false',
     );
@@ -228,7 +268,7 @@ function syncMobileCartLayout() {
   cartPanel.removeAttribute('aria-hidden');
   cartPanel.removeAttribute('role');
   cartPanel.removeAttribute('aria-modal');
-  mobileCartToggle?.setAttribute('aria-expanded', 'false');
+  mobileCartButton?.setAttribute('aria-expanded', 'false');
   if (mobileCartBackdrop) {
     mobileCartBackdrop.classList.remove('show');
     mobileCartBackdrop.hidden = true;
@@ -1059,11 +1099,30 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function getCartItemCount(entries = state.cartLines) {
+  return entries.reduce((sum, entry) => sum + (Number(entry.quantity) || 0), 0);
+}
+
+function updateMobileBadge(itemCount, totalLabel = '') {
+  if (mobileCartBadge) {
+    mobileCartBadge.textContent = String(itemCount);
+    mobileCartBadge.hidden = itemCount === 0;
+  }
+
+  if (mobileCartButton) {
+    const priceLabel = totalLabel ? `, ${totalLabel}` : '';
+    mobileCartButton.setAttribute(
+      'aria-label',
+      `עגלה: ${itemCount} פריטים${priceLabel}`,
+    );
+  }
+}
+
 function renderCart() {
   const entries = buildCartEntries();
   state.cartLines = entries;
   const total = totalFromEntries(entries);
-  const itemCount = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  const itemCount = getCartItemCount(entries);
 
   menuNodes.forEach((node) => {
     const itemId = node.dataset.itemId;
@@ -1103,12 +1162,9 @@ function renderCart() {
   const totalLabel = toShekel(total);
   cartTotalElement.textContent = totalLabel;
   cartTotalInline.textContent = totalLabel;
-  if (mobileCartCount) {
-    mobileCartCount.textContent = String(itemCount);
-    mobileCartCount.hidden = itemCount === 0;
-  }
-  if (mobileCartToggle) {
-    mobileCartToggle.setAttribute(
+  updateMobileBadge(itemCount, totalLabel);
+  if (mobileCartButton) {
+    mobileCartButton.setAttribute(
       'aria-label',
       `עגלה: ${itemCount} פריטים, ${totalLabel}`,
     );
@@ -1826,7 +1882,7 @@ function bindFormEvents() {
 
   sendOrderButton.addEventListener('click', openCheckoutConfirmation);
 
-  mobileCartToggle?.addEventListener('click', () => {
+  mobileCartButton?.addEventListener('click', () => {
     if (cartPanel.classList.contains('open')) {
       closeMobileCart();
     } else {
@@ -1858,6 +1914,13 @@ function restoreInputs() {
 }
 
 function init() {
+  ensureMobileCartElements();
+  if (isMobileViewport()) {
+    console.log('[mobile cart] initialized', {
+      matches: mobileViewportQuery.matches,
+      btn: !!mobileCartButton,
+    });
+  }
   restoreState();
   syncLastOrderLink();
   buildLineEditorModal();
