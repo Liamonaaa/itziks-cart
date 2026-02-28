@@ -1163,7 +1163,7 @@ function buildConfirmModal() {
       <div id="confirmContent"></div>
       <div class="modal-actions">
         <button type="button" class="btn secondary" id="confirmBack">חזרה לעריכה</button>
-        <button type="button" class="btn" id="confirmSend">שליחה בוואטסאפ</button>
+        <button type="button" class="btn" id="confirmSend">שלח הזמנה</button>
       </div>
     </div>
   `;
@@ -1332,16 +1332,43 @@ async function sendOrderToWhatsapp() {
   const total = totalFromEntries(entries);
   const message = buildWhatsappMessage(entries, total);
   const orderPayload = buildFirestoreOrderPayload(entries, total);
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-  const popup = window.open('about:blank', '_blank', 'noopener');
-  ui.confirmModal.sendButton.disabled = true;
+  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
-  let warningMessage = '';
+  const showWhatsappFallback = (warningMessage) => {
+    formErrorElement.textContent = `${warningMessage} `;
+    const link = document.createElement('a');
+    link.href = whatsappUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.className = 'form-error-link';
+    link.textContent = 'שליחה בוואטסאפ';
+    formErrorElement.append(link);
+  };
+
+  const resetCheckoutAfterSuccess = () => {
+    state.cartLines = [];
+    state.name = '';
+    state.phone = '';
+    state.notes = '';
+    state.pickup = '';
+    formErrorElement.textContent = '';
+    restoreInputs();
+    refreshPickupOptions();
+    renderCart();
+    saveState();
+  };
+
+  ui.confirmModal.sendButton.disabled = true;
+  ui.confirmModal.backButton.disabled = true;
+  sendOrderButton.disabled = true;
+  mobileWhatsappButton.disabled = true;
 
   try {
     await saveOrderToFirestore(orderPayload);
     formErrorElement.textContent = '';
-    showToast('ההזמנה נשמרה ונשלחה ✅');
+    closeModal(ui.confirmModal.modal);
+    resetCheckoutAfterSuccess();
+    showToast('הזמנה נשלחה', 3000);
   } catch (error) {
     console.error('Failed to save order to Firestore', {
       error,
@@ -1350,18 +1377,15 @@ async function sendOrderToWhatsapp() {
       payload: orderPayload,
     });
     const firebaseMessage = error?.message || 'Unknown Firebase error';
-    warningMessage = `נשלח בוואטסאפ בלבד — שגיאת Firebase: ${firebaseMessage}`;
-    formErrorElement.textContent = warningMessage;
-    showToast(warningMessage, 3200);
-  } finally {
-    if (popup) {
-      popup.location.href = url;
-    } else {
-      window.open(url, '_blank', 'noopener');
-    }
-
+    const warningMessage = `נשלח בוואטסאפ בלבד — שגיאת Firebase: ${firebaseMessage}`;
     closeModal(ui.confirmModal.modal);
+    cartPanel.classList.add('open');
+    showWhatsappFallback(warningMessage);
+    showToast(warningMessage, 4000);
+  } finally {
     ui.confirmModal.sendButton.disabled = false;
+    ui.confirmModal.backButton.disabled = false;
+    refreshPickupOptions();
   }
 }
 

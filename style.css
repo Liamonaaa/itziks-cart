@@ -744,6 +744,12 @@ select::-ms-expand {
   min-height: 1.35rem;
 }
 
+.form-error-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .cart-actions {
   display: grid;
   gap: 0.55rem;
