@@ -1,9 +1,12 @@
 import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import { db } from './src/firebase.js';
 
+const WHATSAPP_NUMBER = '972500000000';
 const STATUS_FLOW = ['new', 'in_progress', 'ready', 'delivered'];
 const DELIVERED_STATUS = 'delivered';
-const DELIVERED_DISMISS_PREFIX = 'deliveredDismissed_';
+const DELIVERED_CONFIRMED_PREFIX = 'deliveredConfirmed_';
+const DELIVERED_DENIED_PREFIX = 'deliveredDenied_';
+
 const STATUS_META = {
   new: { label: 'חדש', className: 'new' },
   in_progress: { label: 'בהכנה', className: 'in_progress' },
@@ -27,13 +30,21 @@ const ui = {
   customerNotes: document.getElementById('customerNotes'),
   orderItems: document.getElementById('orderItems'),
   orderTotal: document.getElementById('orderTotal'),
-  deliveredBanner: document.getElementById('deliveredBanner'),
-  dismissDeliveredBannerBtn: document.getElementById('dismissDeliveredBannerBtn'),
+  deliveredWarning: document.getElementById('deliveredWarning'),
+  deliveredWarningWhatsapp: document.getElementById('deliveredWarningWhatsapp'),
+  deliveredModalBackdrop: document.getElementById('deliveredModalBackdrop'),
+  deliveredConfirmModal: document.getElementById('deliveredConfirmModal'),
+  deliveredYesBtn: document.getElementById('deliveredYesBtn'),
+  deliveredNoBtn: document.getElementById('deliveredNoBtn'),
+  orderToast: document.getElementById('orderToast'),
 };
 
 let unsubscribeOrder = null;
 let currentOrderId = '';
-let lastStatus = null;
+let isDeliveredModalOpen = false;
+let lastFocusedBeforeModal = null;
+let modalLockedScrollY = 0;
+let toastTimer = null;
 
 const shekelFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -106,70 +117,193 @@ function formatModifiers(modifiers) {
   return lines;
 }
 
-function deliveredDismissKey(orderId) {
-  return `${DELIVERED_DISMISS_PREFIX}${orderId}`;
+function shortOrderNumber(orderId) {
+  return orderId.slice(-6).toUpperCase();
 }
 
-function isDeliveredDismissed(orderId) {
+function deliveredConfirmedKey(orderId) {
+  return `${DELIVERED_CONFIRMED_PREFIX}${orderId}`;
+}
+
+function deliveredDeniedKey(orderId) {
+  return `${DELIVERED_DENIED_PREFIX}${orderId}`;
+}
+
+function getStoredFlag(key) {
   try {
-    return localStorage.getItem(deliveredDismissKey(orderId)) === 'true';
+    return localStorage.getItem(key) === 'true';
   } catch (error) {
-    console.error('Failed to read delivered dismiss state', error);
+    console.error('Failed to read localStorage flag', error);
     return false;
   }
 }
 
-function setDeliveredDismissed(orderId) {
-  if (!orderId) return;
+function setStoredFlag(key) {
   try {
-    localStorage.setItem(deliveredDismissKey(orderId), 'true');
+    localStorage.setItem(key, 'true');
   } catch (error) {
-    console.error('Failed to store delivered dismiss state', error);
+    console.error('Failed to write localStorage flag', error);
   }
 }
 
-function showDeliveredBanner() {
-  if (!ui.deliveredBanner) return;
-  ui.deliveredBanner.hidden = false;
-  requestAnimationFrame(() => {
-    ui.deliveredBanner.classList.add('show');
-  });
-  document.body.classList.add('delivered-banner-open');
+function isDeliveredConfirmed(orderId) {
+  return getStoredFlag(deliveredConfirmedKey(orderId));
 }
 
-function hideDeliveredBanner() {
-  if (!ui.deliveredBanner) return;
-  ui.deliveredBanner.classList.remove('show');
-  document.body.classList.remove('delivered-banner-open');
+function isDeliveredDenied(orderId) {
+  return getStoredFlag(deliveredDeniedKey(orderId));
+}
+
+function showOrderToast(message, timeoutMs = 2400) {
+  if (!ui.orderToast) return;
+
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+
+  ui.orderToast.textContent = message;
+  ui.orderToast.classList.add('show');
+  toastTimer = window.setTimeout(() => {
+    ui.orderToast.classList.remove('show');
+    toastTimer = null;
+  }, timeoutMs);
+}
+
+function lockBodyScrollForModal() {
+  if (document.body.classList.contains('order-modal-open')) return;
+  modalLockedScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = `-${modalLockedScrollY}px`;
+  document.body.classList.add('order-modal-open');
+}
+
+function unlockBodyScrollForModal() {
+  if (!document.body.classList.contains('order-modal-open')) return;
+  document.body.classList.remove('order-modal-open');
+  document.body.style.top = '';
+  window.scrollTo(0, modalLockedScrollY);
+}
+
+function getModalFocusableElements() {
+  if (!ui.deliveredConfirmModal) return [];
+  return Array.from(
+    ui.deliveredConfirmModal.querySelectorAll(
+      'button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute('disabled'));
+}
+
+function openDeliveredModal() {
+  if (isDeliveredModalOpen) return;
+  if (!ui.deliveredConfirmModal || !ui.deliveredModalBackdrop) return;
+
+  isDeliveredModalOpen = true;
+  lastFocusedBeforeModal =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  ui.deliveredModalBackdrop.hidden = false;
+  ui.deliveredConfirmModal.hidden = false;
+  requestAnimationFrame(() => {
+    ui.deliveredModalBackdrop.classList.add('show');
+    ui.deliveredConfirmModal.classList.add('show');
+  });
+  lockBodyScrollForModal();
+  ui.deliveredYesBtn?.focus({ preventScroll: true });
+}
+
+function closeDeliveredModal({ restoreFocus = true } = {}) {
+  if (!ui.deliveredConfirmModal || !ui.deliveredModalBackdrop) return;
+
+  isDeliveredModalOpen = false;
+  ui.deliveredModalBackdrop.classList.remove('show');
+  ui.deliveredConfirmModal.classList.remove('show');
+  unlockBodyScrollForModal();
   window.setTimeout(() => {
-    if (!ui.deliveredBanner.classList.contains('show')) {
-      ui.deliveredBanner.hidden = true;
+    if (!isDeliveredModalOpen) {
+      ui.deliveredModalBackdrop.hidden = true;
+      ui.deliveredConfirmModal.hidden = true;
     }
   }, 230);
+
+  if (restoreFocus && lastFocusedBeforeModal) {
+    lastFocusedBeforeModal.focus({ preventScroll: true });
+  }
+  lastFocusedBeforeModal = null;
 }
 
-function syncDeliveredNotice(orderId, status) {
-  if (!ui.deliveredBanner) {
-    lastStatus = status;
+function hideDeniedWarning() {
+  if (!ui.deliveredWarning) return;
+  ui.deliveredWarning.hidden = true;
+}
+
+function showDeniedWarning(orderId) {
+  if (!ui.deliveredWarning) return;
+  ui.deliveredWarning.hidden = false;
+  if (ui.deliveredWarningWhatsapp) {
+    const text = `היי, עדיין לא קיבלתי את ההזמנה #${shortOrderNumber(orderId)}`;
+    ui.deliveredWarningWhatsapp.href = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+  }
+}
+
+function syncDeliveryDecisionUi(orderId, status) {
+  const isDelivered = status === DELIVERED_STATUS;
+  if (!isDelivered) {
+    closeDeliveredModal({ restoreFocus: false });
+    hideDeniedWarning();
     return;
   }
 
-  const isDelivered = status === DELIVERED_STATUS;
-  const wasDelivered = lastStatus === DELIVERED_STATUS;
-  const transitionedToDelivered = !wasDelivered && isDelivered;
-  const dismissed = isDeliveredDismissed(orderId);
+  const confirmed = isDeliveredConfirmed(orderId);
+  const denied = isDeliveredDenied(orderId);
 
-  if (isDelivered && !dismissed) {
-    if (transitionedToDelivered || ui.deliveredBanner.hidden) {
-      showDeliveredBanner();
-    }
-  } else if (isDelivered && dismissed) {
-    hideDeliveredBanner();
-  } else if (!isDelivered) {
-    hideDeliveredBanner();
+  if (denied) {
+    showDeniedWarning(orderId);
+  } else {
+    hideDeniedWarning();
   }
 
-  lastStatus = status;
+  if (!confirmed && !denied) {
+    openDeliveredModal();
+  } else {
+    closeDeliveredModal({ restoreFocus: false });
+  }
+}
+
+function handleModalKeydown(event) {
+  if (!isDeliveredModalOpen) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+  const focusables = getModalFocusableElements();
+  if (focusables.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!focusables.includes(active)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return;
+  }
+
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function renderTimeline(status) {
@@ -182,8 +316,8 @@ function renderTimeline(status) {
   });
 
   if (status === 'cancelled') return;
-
   if (currentIndex === -1) return;
+
   stepElements.forEach((element, index) => {
     if (index < currentIndex) {
       element.classList.add('is-complete');
@@ -226,20 +360,13 @@ function renderItems(items) {
   });
 }
 
-function shortOrderNumber(orderId) {
-  return orderId.slice(-6).toUpperCase();
-}
-
 function showNotFound(message) {
   ui.loadingCard.hidden = true;
   ui.orderContent.hidden = true;
   ui.notFoundCard.hidden = false;
-  hideDeliveredBanner();
-  if (message) {
-    ui.notFoundMessage.textContent = message;
-  } else {
-    ui.notFoundMessage.textContent = 'לא הצלחנו למצוא את ההזמנה המבוקשת.';
-  }
+  closeDeliveredModal({ restoreFocus: false });
+  hideDeniedWarning();
+  ui.notFoundMessage.textContent = message || 'לא הצלחנו למצוא את ההזמנה המבוקשת.';
 }
 
 function showOrderContent() {
@@ -251,8 +378,8 @@ function showOrderContent() {
 function renderOrder(orderId, orderData) {
   const status = typeof orderData.status === 'string' ? orderData.status : 'new';
   const statusMeta = STATUS_META[status] || STATUS_META.new;
-  syncDeliveredNotice(orderId, status);
 
+  syncDeliveryDecisionUi(orderId, status);
   ui.orderNumber.textContent = `#${shortOrderNumber(orderId)}`;
   ui.orderStatusBadge.textContent = statusMeta.label;
   ui.orderStatusBadge.className = `status-badge ${statusMeta.className}`;
@@ -268,6 +395,29 @@ function renderOrder(orderId, orderData) {
   ui.orderTotal.textContent = formatMoney(orderData.total);
 }
 
+function bindDeliveryDecisionEvents() {
+  if (ui.deliveredYesBtn) {
+    ui.deliveredYesBtn.addEventListener('click', () => {
+      if (!currentOrderId) return;
+      setStoredFlag(deliveredConfirmedKey(currentOrderId));
+      closeDeliveredModal();
+      hideDeniedWarning();
+      showOrderToast('מעולה ✅ בתיאבון!');
+    });
+  }
+
+  if (ui.deliveredNoBtn) {
+    ui.deliveredNoBtn.addEventListener('click', () => {
+      if (!currentOrderId) return;
+      setStoredFlag(deliveredDeniedKey(currentOrderId));
+      closeDeliveredModal();
+      showDeniedWarning(currentOrderId);
+    });
+  }
+
+  document.addEventListener('keydown', handleModalKeydown);
+}
+
 function initOrderPage() {
   const orderId = new URLSearchParams(window.location.search).get('id')?.trim();
   if (!orderId) {
@@ -276,14 +426,7 @@ function initOrderPage() {
   }
 
   currentOrderId = orderId;
-  lastStatus = null;
-
-  if (ui.dismissDeliveredBannerBtn) {
-    ui.dismissDeliveredBannerBtn.addEventListener('click', () => {
-      setDeliveredDismissed(currentOrderId);
-      hideDeliveredBanner();
-    });
-  }
+  bindDeliveryDecisionEvents();
 
   if (!db) {
     showNotFound('שגיאה בחיבור למסד הנתונים');

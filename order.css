@@ -25,67 +25,12 @@ body {
   background: radial-gradient(circle at top, #fff8f1 0%, var(--bg) 45%, var(--bg-2) 100%);
 }
 
-body.delivered-banner-open {
-  padding-top: calc(78px + env(safe-area-inset-top));
-}
-
-.delivered-banner {
+body.order-modal-open {
   position: fixed;
-  top: 0;
   left: 0;
   right: 0;
-  z-index: 70;
-  opacity: 0;
-  transform: translateY(-14px);
-  pointer-events: none;
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s ease;
-}
-
-.delivered-banner.show {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.delivered-banner-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  padding: calc(0.5rem + env(safe-area-inset-top)) 0.85rem 0.55rem;
-  background: linear-gradient(140deg, #f4e6d7, #f8efe5);
-  border-bottom: 1px solid #d8c3ad;
-  box-shadow: 0 8px 24px rgba(43, 32, 24, 0.16);
-}
-
-.delivered-banner-text strong {
-  display: block;
-  font-size: 1rem;
-}
-
-.delivered-banner-text p {
-  margin: 0.1rem 0 0;
-  color: #5d4938;
-  font-size: 0.9rem;
-}
-
-.delivered-banner button {
-  border: 1px solid #d3b79c;
-  background: #fff;
-  color: var(--accent);
-  border-radius: 999px;
-  padding: 0.45rem 0.9rem;
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.delivered-banner button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.3);
+  width: 100%;
+  overflow: hidden;
 }
 
 .order-page {
@@ -122,6 +67,28 @@ h1 {
   color: var(--accent);
   background: #fff;
   white-space: nowrap;
+}
+
+.delivered-warning {
+  display: grid;
+  gap: 0.55rem;
+  border-color: #ecd8c3;
+  background: linear-gradient(145deg, #fff7ee, #fff);
+}
+
+.delivered-warning strong {
+  color: #5d4938;
+}
+
+.delivered-warning a {
+  justify-self: start;
+  border: 1px solid #d6c0a8;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  color: var(--accent);
+  text-decoration: none;
+  background: #fff;
+  font-weight: 500;
 }
 
 .card {
@@ -281,13 +248,110 @@ h1 {
   font-size: 1.05rem;
 }
 
-@media (max-width: 760px) {
-  body.delivered-banner-open {
-    padding-top: calc(96px + env(safe-area-inset-top));
-  }
+.delivered-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 23, 16, 0.48);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  z-index: 89;
+}
 
-  .delivered-banner-inner {
-    align-items: flex-start;
+.delivered-modal-backdrop.show {
+  opacity: 1;
+}
+
+.delivered-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -44%);
+  width: min(430px, calc(100vw - 2rem));
+  background: #fff;
+  border: 1px solid #e3d2c0;
+  border-radius: 18px;
+  box-shadow: 0 20px 48px rgba(43, 32, 24, 0.28);
+  padding: 1rem;
+  z-index: 90;
+  opacity: 0;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.delivered-modal.show {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.delivered-modal h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.4rem;
+}
+
+.delivered-modal p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.delivered-modal-actions {
+  margin-top: 0.95rem;
+  display: flex;
+  gap: 0.55rem;
+}
+
+.delivered-modal-actions button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.delivered-modal-actions .btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.delivered-modal-actions .btn-secondary {
+  background: #fff;
+  color: var(--accent);
+  border-color: #d8c3ad;
+}
+
+.delivered-modal-actions button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.3);
+}
+
+.order-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(0.8rem + env(safe-area-inset-bottom));
+  transform: translate(-50%, 10px);
+  background: #2b2018;
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.92rem;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  z-index: 95;
+}
+
+.order-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 760px) {
+  .delivered-modal-actions {
     flex-direction: column;
   }
 

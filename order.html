@@ -11,19 +11,9 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./order.css?v=20260228-2" />
+    <link rel="stylesheet" href="./order.css?v=20260228-3" />
   </head>
   <body>
-    <div class="delivered-banner" id="deliveredBanner" hidden>
-      <div class="delivered-banner-inner">
-        <div class="delivered-banner-text">
-          <strong>ההזמנה נמסרה ✅</strong>
-          <p>בתיאבון! אם משהו לא הסתדר — דברו איתנו.</p>
-        </div>
-        <button id="dismissDeliveredBannerBtn" type="button">סגור</button>
-      </div>
-    </div>
-
     <main class="order-page">
       <header class="order-top">
         <div>
@@ -32,6 +22,18 @@
         </div>
         <a class="back-link" href="./index.html">חזרה לתפריט</a>
       </header>
+
+      <section class="card delivered-warning" id="deliveredWarning" hidden>
+        <strong>רשום. אם לא קיבלת את ההזמנה עדיין, דברו איתנו בוואטסאפ.</strong>
+        <a
+          id="deliveredWarningWhatsapp"
+          href="https://wa.me/972500000000"
+          target="_blank"
+          rel="noopener"
+        >
+          דברו איתנו בוואטסאפ
+        </a>
+      </section>
 
       <section class="card" id="loadingCard">
         <p>טוענים הזמנה...</p>
@@ -93,6 +95,26 @@
       </section>
     </main>
 
-    <script type="module" src="./order.js?v=20260228-2"></script>
+    <div class="delivered-modal-backdrop" id="deliveredModalBackdrop" hidden></div>
+    <section
+      class="delivered-modal"
+      id="deliveredConfirmModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deliveredModalTitle"
+      aria-describedby="deliveredModalBody"
+      hidden
+    >
+      <h2 id="deliveredModalTitle">האם ההזמנה נמסרה?</h2>
+      <p id="deliveredModalBody">אם קיבלת את ההזמנה לחץ/י כן. אם לא — לחץ/י לא.</p>
+      <div class="delivered-modal-actions">
+        <button class="btn-primary" id="deliveredYesBtn" type="button">כן</button>
+        <button class="btn-secondary" id="deliveredNoBtn" type="button">לא</button>
+      </div>
+    </section>
+
+    <div class="order-toast" id="orderToast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./order.js?v=20260228-3"></script>
   </body>
 </html>
