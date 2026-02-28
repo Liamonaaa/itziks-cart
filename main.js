@@ -135,7 +135,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-3';
+const BUILD_VERSION = '20260228-4';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -626,9 +626,16 @@ function setCustomSelectValue(inputNode, value, emitChange = false) {
   if (hiddenInput) hiddenInput.value = value;
 }
 
-function renderOptionChecks(groupClass, options, selectedValues, withPrice = false) {
+function renderOptionChecks(
+  groupKey,
+  groupClass,
+  options,
+  selectedValues,
+  withPrice = false,
+  includeAllOption = false,
+) {
   const selectedSet = new Set(selectedValues);
-  return options
+  const optionMarkup = options
     .map((option) => {
       const value = typeof option === 'string' ? option : option.id;
       const label = typeof option === 'string' ? option : option.label;
@@ -641,12 +648,71 @@ function renderOptionChecks(groupClass, options, selectedValues, withPrice = fal
           : '';
       return `
         <label class="shawarma-check">
-          <input type="checkbox" class="${groupClass}" value="${value}"${addonData} ${checked} />
+          <input type="checkbox" class="${groupClass} group-choice" data-group="${groupKey}" value="${value}"${addonData} ${checked} />
           ${label}${suffix}
         </label>
       `;
     })
     .join('');
+
+  if (!includeAllOption) return optionMarkup;
+
+  const allSelected =
+    options.length > 0 &&
+    options.every((option) => {
+      const value = typeof option === 'string' ? option : option.id;
+      return selectedSet.has(value);
+    });
+  const allChecked = allSelected ? 'checked' : '';
+  return `
+    <label class="shawarma-check">
+      <input type="checkbox" class="group-all-toggle" data-group="${groupKey}" ${allChecked} />
+      הכול
+    </label>
+    ${optionMarkup}
+  `;
+}
+
+function syncGroupAllToggle(root, groupKey) {
+  if (!root) return;
+  const allToggle = root.querySelector(`.group-all-toggle[data-group="${groupKey}"]`);
+  if (!allToggle) return;
+  const itemInputs = Array.from(
+    root.querySelectorAll(`.group-choice[data-group="${groupKey}"]`),
+  );
+  allToggle.checked =
+    itemInputs.length > 0 && itemInputs.every((input) => input.checked);
+}
+
+function syncAllGroupToggles(root) {
+  if (!root) return;
+  ['salads', 'sauces', 'pickles'].forEach((groupKey) =>
+    syncGroupAllToggle(root, groupKey),
+  );
+}
+
+function initGroupAllBehavior(root) {
+  if (!root || root.dataset.groupAllReady === 'true') return;
+  root.dataset.groupAllReady = 'true';
+
+  root.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const groupKey = target.dataset.group;
+    if (!groupKey) return;
+
+    if (target.classList.contains('group-all-toggle')) {
+      root
+        .querySelectorAll(`.group-choice[data-group="${groupKey}"]`)
+        .forEach((input) => {
+          input.checked = target.checked;
+        });
+    }
+
+    syncGroupAllToggle(root, groupKey);
+  });
+
+  syncAllGroupToggles(root);
 }
 
 function buildSandwichOptionsEditor(itemId) {
@@ -659,30 +725,32 @@ function buildSandwichOptionsEditor(itemId) {
   wrapper.dataset.itemId = itemId;
   wrapper.innerHTML = `
     <div class="shawarma-group">
-      <div class="option-label">סלטים (בחירה חופשית)</div>
-      <div class="checks-wrap">
-        ${renderOptionChecks('salad-choice', SALAD_OPTIONS, options.salads)}
+        <div class="option-label">סלטים (בחירה חופשית)</div>
+        <div class="checks-wrap">
+        ${renderOptionChecks('salads', 'salad-choice', SALAD_OPTIONS, options.salads, false, true)}
       </div>
     </div>
     <div class="shawarma-group">
       <div class="option-label">רטבים (בחירה חופשית)</div>
       <div class="checks-wrap">
-        ${renderOptionChecks('sauce-choice', SAUCE_OPTIONS, options.sauces)}
+        ${renderOptionChecks('sauces', 'sauce-choice', SAUCE_OPTIONS, options.sauces, false, true)}
       </div>
     </div>
     <div class="shawarma-group">
       <div class="option-label">חמוצים (בחירה חופשית)</div>
       <div class="checks-wrap">
-        ${renderOptionChecks('pickle-choice', PICKLE_OPTIONS, options.pickles)}
+        ${renderOptionChecks('pickles', 'pickle-choice', PICKLE_OPTIONS, options.pickles, false, true)}
       </div>
     </div>
     <div class="shawarma-group">
       <div class="option-label">תוספת בתשלום</div>
       <div class="checks-wrap">
-        ${renderOptionChecks('paid-addon', PAID_ADDONS, options.paidAddons, true)}
+        ${renderOptionChecks('paidAddons', 'paid-addon', PAID_ADDONS, options.paidAddons, true)}
       </div>
     </div>
   `;
+
+  initGroupAllBehavior(wrapper);
 
   wrapper.addEventListener('change', () => {
     state.lastOptions[itemId] = readSandwichOptionsFromMenu(itemId);
@@ -730,6 +798,7 @@ function applySandwichSelections(root, options) {
   setValues('.sauce-choice', normalized.sauces);
   setValues('.pickle-choice', normalized.pickles);
   setValues('.paid-addon', normalized.paidAddons);
+  syncAllGroupToggles(root);
 }
 
 function buildQuantityControls(item) {
@@ -1383,29 +1452,30 @@ function openLineEditor(lineId) {
         <div class="shawarma-group">
           <div class="option-label">סלטים (בחירה חופשית)</div>
           <div class="checks-wrap">
-            ${renderOptionChecks('salad-choice', SALAD_OPTIONS, options.salads)}
+            ${renderOptionChecks('salads', 'salad-choice', SALAD_OPTIONS, options.salads, false, true)}
           </div>
         </div>
         <div class="shawarma-group">
           <div class="option-label">רטבים (בחירה חופשית)</div>
           <div class="checks-wrap">
-            ${renderOptionChecks('sauce-choice', SAUCE_OPTIONS, options.sauces)}
+            ${renderOptionChecks('sauces', 'sauce-choice', SAUCE_OPTIONS, options.sauces, false, true)}
           </div>
         </div>
         <div class="shawarma-group">
           <div class="option-label">חמוצים (בחירה חופשית)</div>
           <div class="checks-wrap">
-            ${renderOptionChecks('pickle-choice', PICKLE_OPTIONS, options.pickles)}
+            ${renderOptionChecks('pickles', 'pickle-choice', PICKLE_OPTIONS, options.pickles, false, true)}
           </div>
         </div>
         <div class="shawarma-group">
           <div class="option-label">תוספת בתשלום</div>
           <div class="checks-wrap">
-            ${renderOptionChecks('paid-addon', PAID_ADDONS, options.paidAddons, true)}
+            ${renderOptionChecks('paidAddons', 'paid-addon', PAID_ADDONS, options.paidAddons, true)}
           </div>
         </div>
       </div>
     `;
+    initGroupAllBehavior(ui.lineEditor.content.querySelector('.shawarma-options'));
   } else {
     ui.lineEditor.content.innerHTML =
       '<p class="field-hint">לפריט זה אין אפשרויות נוספות. ניתן לעדכן הערה בלבד.</p>';
