@@ -882,6 +882,15 @@ select::-ms-expand {
   margin-top: 0.35rem;
 }
 
+.reset-all-btn {
+  border-color: #d8b6b6;
+  color: #8a2f2f;
+}
+
+.reset-all-btn:hover {
+  box-shadow: 0 10px 18px rgba(138, 47, 47, 0.18);
+}
+
 .last-order-link {
   width: 100%;
   margin-top: -0.1rem;
@@ -1227,6 +1236,11 @@ select::-ms-expand {
   gap: 0.6rem;
   flex-wrap: wrap;
   margin-top: 0.9rem;
+}
+
+.reset-modal-text {
+  margin: 0;
+  color: var(--muted);
 }
 
 .modal-options-grid {

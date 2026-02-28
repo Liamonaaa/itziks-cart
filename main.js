@@ -87,6 +87,7 @@ const cartEmptyElement = document.getElementById('cartEmpty');
 const cartTotalElement = document.getElementById('cartTotal');
 const cartTotalInline = document.getElementById('cartTotalInline');
 const clearCartButton = document.getElementById('clearCartBtn');
+const resetAllButton = document.getElementById('resetAllBtn');
 const sendOrderButton = document.getElementById('sendOrderBtn');
 let mobileCartButton = document.getElementById('mobileCartBtn');
 let mobileCartBadge = document.getElementById('mobileCartBadge');
@@ -130,6 +131,11 @@ const ui = {
     backButton: null,
     sendButton: null,
   },
+  resetModal: {
+    modal: null,
+    cancelButton: null,
+    confirmButton: null,
+  },
 };
 
 let customSelectGlobalBound = false;
@@ -137,7 +143,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-9';
+const BUILD_VERSION = '20260228-10';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -1242,6 +1248,70 @@ function restoreState() {
   }
 }
 
+function clearDraftStorage() {
+  const clearFromStore = (store) => {
+    try {
+      store.removeItem(STORAGE_KEY);
+      for (let i = store.length - 1; i >= 0; i -= 1) {
+        const key = store.key(i);
+        if (!key) continue;
+        if (key.startsWith('itziks-cart-order-')) {
+          store.removeItem(key);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to clear draft storage', error);
+    }
+  };
+
+  clearFromStore(localStorage);
+  clearFromStore(sessionStorage);
+}
+
+function resetMenuSelectionsToDefault() {
+  const menuRoot = document.getElementById('menu');
+  if (menuRoot) {
+    menuRoot
+      .querySelectorAll('input[type="checkbox"], input[type="radio"]')
+      .forEach((input) => {
+        input.checked = false;
+      });
+    menuRoot.querySelectorAll('select').forEach((select) => {
+      select.selectedIndex = 0;
+    });
+  }
+
+  itemsById.forEach((item) => {
+    if (item.isSandwich) {
+      const defaults = copyOptions(DEFAULT_SANDWICH_OPTIONS);
+      state.lastOptions[item.id] = defaults;
+      const optionsRoot = menuNodeById(item.id)?.querySelector('.shawarma-options');
+      applySandwichSelections(optionsRoot, defaults);
+    }
+    updateMenuItemPrice(item.id);
+  });
+}
+
+function resetAllSelections() {
+  if (ui.resetModal.modal) closeModal(ui.resetModal.modal);
+  if (ui.lineEditor.modal) closeModal(ui.lineEditor.modal);
+  if (ui.confirmModal.modal) closeModal(ui.confirmModal.modal);
+
+  state.cartLines = [];
+  state.name = '';
+  state.phone = '';
+  state.notes = '';
+  state.pickup = '';
+  state.lastOptions = {};
+  formErrorElement.textContent = '';
+
+  resetMenuSelectionsToDefault();
+  restoreInputs();
+  refreshPickupOptions();
+  renderCart();
+  clearDraftStorage();
+}
+
 function normalizePhone(phone) {
   return phone.replace(/[\s\-()]/g, '');
 }
@@ -1581,6 +1651,39 @@ function buildConfirmModal() {
   });
 }
 
+function buildResetAllModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'resetAllModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="resetAllTitle">
+      <h3 id="resetAllTitle">לאפס את כל הבחירות?</h3>
+      <p class="reset-modal-text">זה ימחק את כל הפריטים והבחירות שביצעת.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="resetAllConfirm">כן, אפס</button>
+        <button type="button" class="btn secondary" id="resetAllCancel">ביטול</button>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  ui.resetModal.modal = modal;
+  ui.resetModal.confirmButton = modal.querySelector('#resetAllConfirm');
+  ui.resetModal.cancelButton = modal.querySelector('#resetAllCancel');
+
+  ui.resetModal.cancelButton.addEventListener('click', () => closeModal(modal));
+  ui.resetModal.confirmButton.addEventListener('click', resetAllSelections);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal(modal);
+  });
+}
+
+function openResetAllConfirmation() {
+  formErrorElement.textContent = '';
+  openModal(ui.resetModal.modal);
+}
+
 function openLineEditor(lineId) {
   const line = state.cartLines.find((entry) => entry.lineId === lineId);
   if (!line) return;
@@ -1880,6 +1983,7 @@ function bindFormEvents() {
     saveState();
     renderCart();
   });
+  resetAllButton?.addEventListener('click', openResetAllConfirmation);
 
   sendOrderButton.addEventListener('click', openCheckoutConfirmation);
 
@@ -1926,6 +2030,7 @@ function init() {
   syncLastOrderLink();
   buildLineEditorModal();
   buildConfirmModal();
+  buildResetAllModal();
   initItems();
   restoreInputs();
   refreshPickupOptions();
