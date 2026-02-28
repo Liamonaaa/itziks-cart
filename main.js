@@ -31,6 +31,47 @@ const SANDWICH_ITEM_IDS = new Set([
   'laffa-veal',
   'laffa-turkey',
 ]);
+const DRINK_ITEM_IDS = new Set([
+  'drink-can',
+  'drink-bottle-05',
+  'drink-bottle-15',
+]);
+const DRINK_CATEGORY_LABEL = 'שתייה';
+const DRINK_TYPE_OPTIONS = [
+  'קוקה קולה',
+  'קוקה קולה זירו',
+  'קוקה קולה דיאט',
+  'ספרייט',
+  'ספרייט זירו',
+  'פאנטה תפוזים',
+  'פאנטה ענבים',
+  'קינלי טוניק',
+  'קינלי סודה',
+  'קינלי ג׳ינג׳ר אייל',
+  'פיוז טי אפרסק',
+  'פיוז טי לימון',
+  'נסטי אפרסק',
+  'נסטי לימון',
+  'מים מינרליים',
+  'מים מינרליים מוגזים',
+  'פריגת/מיץ תפוזים',
+  'פריגת/מיץ ענבים',
+  'פריגת/מיץ תפוחים',
+  'XL',
+  'XL זירו',
+  'רדבול',
+  'בירה שחורה (מאלטי)',
+  'שוקו',
+  'לימונדה',
+  'קפה קר',
+  'טרופית',
+  'ענבים סחוט',
+  'תפוזים סחוט',
+  'לימונענע',
+  'סיידר תפוחים',
+  'יוגורט לשתייה',
+];
+const DRINK_TYPE_SET = new Set(DRINK_TYPE_OPTIONS);
 
 const SALAD_OPTIONS = [
   'עגבנייה',
@@ -113,6 +154,7 @@ const state = {
   notes: '',
   pickup: '',
   lastOptions: {},
+  lastDrinkType: {},
 };
 
 const ui = {
@@ -136,6 +178,12 @@ const ui = {
     cancelButton: null,
     confirmButton: null,
   },
+  drinkChangeModal: {
+    modal: null,
+    cancelButton: null,
+    confirmButton: null,
+    pending: null,
+  },
 };
 
 let customSelectGlobalBound = false;
@@ -143,7 +191,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-10';
+const BUILD_VERSION = '20260228-11';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -342,11 +390,43 @@ function parseItemData(node) {
   const name = node.dataset.itemName;
   const price = Number(node.dataset.itemPrice || 0);
   if (!id || !name || Number.isNaN(price)) return null;
-  return { id, name, price, node, isSandwich: SANDWICH_ITEM_IDS.has(id) };
+  return {
+    id,
+    name,
+    price,
+    node,
+    isSandwich: SANDWICH_ITEM_IDS.has(id),
+    isDrink: DRINK_ITEM_IDS.has(id),
+  };
 }
 
 function isSandwichItem(itemId) {
   return SANDWICH_ITEM_IDS.has(itemId);
+}
+
+function isDrinkItem(itemId) {
+  return DRINK_ITEM_IDS.has(itemId);
+}
+
+function sanitizeDrinkType(value) {
+  const safeValue = String(value || '').trim();
+  return DRINK_TYPE_SET.has(safeValue) ? safeValue : '';
+}
+
+function readDrinkTypeFromMenu(itemId) {
+  const select = menuNodeById(itemId)?.querySelector('.drink-type-select');
+  return sanitizeDrinkType(select?.value || '');
+}
+
+function setDrinkError(itemId, message = '') {
+  const errorNode = menuNodeById(itemId)?.querySelector('.drink-type-error');
+  if (!errorNode) return;
+  errorNode.textContent = message;
+  errorNode.hidden = !message;
+}
+
+function clearDrinkError(itemId) {
+  setDrinkError(itemId, '');
 }
 
 function sanitizeSelection(values, allowedValues) {
@@ -900,6 +980,89 @@ function applySandwichSelections(root, options) {
   syncAllGroupToggles(root);
 }
 
+function cancelPendingDrinkTypeChange() {
+  const pending = ui.drinkChangeModal.pending;
+  if (pending?.selectNode) {
+    pending.selectNode.value = pending.previousType || '';
+  }
+  ui.drinkChangeModal.pending = null;
+  if (ui.drinkChangeModal.modal) closeModal(ui.drinkChangeModal.modal);
+}
+
+function applyPendingDrinkTypeChange() {
+  const pending = ui.drinkChangeModal.pending;
+  if (!pending) return;
+
+  state.cartLines = state.cartLines.filter((line) => line.itemId !== pending.itemId);
+  state.lastDrinkType[pending.itemId] = pending.nextType;
+  clearDrinkError(pending.itemId);
+  ui.drinkChangeModal.pending = null;
+  if (ui.drinkChangeModal.modal) closeModal(ui.drinkChangeModal.modal);
+  saveState();
+  renderCart();
+}
+
+function openDrinkTypeChangeConfirmation(itemId, nextType, selectNode) {
+  ui.drinkChangeModal.pending = {
+    itemId,
+    nextType,
+    previousType: state.lastDrinkType[itemId] || '',
+    selectNode,
+  };
+  openModal(ui.drinkChangeModal.modal);
+}
+
+function handleDrinkTypeSelectionChange(itemId, selectNode) {
+  const nextType = sanitizeDrinkType(selectNode.value);
+  const previousType = sanitizeDrinkType(state.lastDrinkType[itemId] || '');
+  const itemQuantity = getItemQuantity(itemId);
+
+  if (!nextType) {
+    setDrinkError(itemId, 'חייב לבחור שתייה');
+    return;
+  }
+
+  clearDrinkError(itemId);
+  if (nextType === previousType) return;
+
+  if (itemQuantity > 0) {
+    openDrinkTypeChangeConfirmation(itemId, nextType, selectNode);
+    return;
+  }
+
+  state.lastDrinkType[itemId] = nextType;
+  saveState();
+}
+
+function buildDrinkTypeSelector(item) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'drink-type-wrap';
+
+  const selectId = `drink-type-${item.id}`;
+  const optionsMarkup = DRINK_TYPE_OPTIONS.map(
+    (drinkType) => `<option value="${drinkType}">${drinkType}</option>`,
+  ).join('');
+
+  wrapper.innerHTML = `
+    <label class="drink-type-label" for="${selectId}">בחר שתייה</label>
+    <select class="drink-type-select" id="${selectId}">
+      <option value="" disabled selected>בחר שתייה…</option>
+      ${optionsMarkup}
+    </select>
+    <p class="drink-type-error" hidden>חייב לבחור שתייה</p>
+  `;
+
+  const selectNode = wrapper.querySelector('.drink-type-select');
+  const current = sanitizeDrinkType(state.lastDrinkType[item.id] || '');
+  selectNode.value = current || '';
+
+  selectNode.addEventListener('change', () => {
+    handleDrinkTypeSelectionChange(item.id, selectNode);
+  });
+
+  return wrapper;
+}
+
 function buildQuantityControls(item) {
   const wrapper = document.createElement('div');
   wrapper.className = 'order-controls qty';
@@ -945,6 +1108,14 @@ function attachControlsToMenuItem(item) {
       textColumn.append(buildSandwichOptionsEditor(item.id));
     }
   }
+
+  if (item.isDrink) {
+    item.node.classList.add('menu-item-with-options');
+    const textColumn = item.node.querySelector(':scope > .menu-item-main');
+    if (textColumn) {
+      textColumn.append(buildDrinkTypeSelector(item));
+    }
+  }
 }
 
 function getItemQuantity(itemId) {
@@ -953,12 +1124,13 @@ function getItemQuantity(itemId) {
     .reduce((sum, line) => sum + line.quantity, 0);
 }
 
-function findMatchingEditableLine(itemId, options) {
+function findMatchingEditableLine(itemId, options, drinkType = '') {
   return state.cartLines.find(
     (line) =>
       line.itemId === itemId &&
       line.note.trim() === '' &&
-      optionsEqual(line.options, options),
+      optionsEqual(line.options, options) &&
+      sanitizeDrinkType(line.drinkType) === sanitizeDrinkType(drinkType),
   );
 }
 
@@ -969,19 +1141,35 @@ function addItemFromMenu(itemId) {
   const options = item.isSandwich
     ? readSandwichOptionsFromMenu(itemId)
     : null;
+  const drinkType = item.isDrink ? readDrinkTypeFromMenu(itemId) : '';
+
+  if (item.isDrink && !drinkType) {
+    setDrinkError(itemId, 'חייב לבחור שתייה');
+    return;
+  }
+  if (item.isDrink) {
+    state.lastDrinkType[itemId] = drinkType;
+    clearDrinkError(itemId);
+  }
 
   if (item.isSandwich) {
     state.lastOptions[itemId] = copyOptions(options);
   }
 
-  const existing = findMatchingEditableLine(itemId, options);
+  const existing = findMatchingEditableLine(itemId, options, drinkType);
+  const baseName = item.name;
+  const displayName = item.isDrink ? `${baseName} — ${drinkType}` : baseName;
   if (existing) {
     existing.quantity += 1;
   } else {
     state.cartLines.push({
       lineId: createLineId(),
       itemId: item.id,
-      name: item.name,
+      name: displayName,
+      baseName,
+      displayName,
+      category: item.isDrink ? DRINK_CATEGORY_LABEL : '',
+      drinkType: item.isDrink ? drinkType : '',
       basePrice: item.price,
       quantity: 1,
       options,
@@ -1009,8 +1197,21 @@ function removeItemFromMenu(itemId) {
         optionsEqual(line.options, selectedOptions),
     );
   }
+  if (item.isDrink) {
+    const selectedDrinkType = readDrinkTypeFromMenu(itemId);
+    if (!selectedDrinkType) {
+      setDrinkError(itemId, 'חייב לבחור שתייה');
+      return;
+    }
+    clearDrinkError(itemId);
+    target = state.cartLines.find(
+      (line) =>
+        line.itemId === itemId &&
+        sanitizeDrinkType(line.drinkType) === selectedDrinkType,
+    );
+  }
 
-  if (!target) {
+  if (!target && !item.isDrink) {
     for (let i = state.cartLines.length - 1; i >= 0; i -= 1) {
       if (state.cartLines[i].itemId === itemId) {
         target = state.cartLines[i];
@@ -1039,10 +1240,26 @@ function sanitizeCartLine(line) {
   const quantity = Number(line.quantity || 0);
   if (!Number.isFinite(quantity) || quantity <= 0) return null;
 
+  const baseName =
+    typeof line.baseName === 'string' && line.baseName.trim()
+      ? line.baseName.trim()
+      : item.name;
+  const drinkType = item.isDrink ? sanitizeDrinkType(line.drinkType) : '';
+  if (item.isDrink && !drinkType) return null;
+  const displayName = item.isDrink
+    ? `${baseName} — ${drinkType}`
+    : typeof line.displayName === 'string' && line.displayName.trim()
+      ? line.displayName.trim()
+      : item.name;
+
   return {
     lineId: typeof line.lineId === 'string' ? line.lineId : createLineId(),
     itemId: item.id,
-    name: item.name,
+    name: displayName,
+    baseName,
+    displayName,
+    category: item.isDrink ? DRINK_CATEGORY_LABEL : '',
+    drinkType,
     basePrice: item.price,
     quantity: Math.floor(quantity),
     options: item.isSandwich ? normalizeSandwichOptions(line.options) : null,
@@ -1057,7 +1274,8 @@ function mergeDuplicateLines() {
       (candidate) =>
         candidate.itemId === line.itemId &&
         candidate.note.trim() === line.note.trim() &&
-        optionsEqual(candidate.options, line.options),
+        optionsEqual(candidate.options, line.options) &&
+        sanitizeDrinkType(candidate.drinkType) === sanitizeDrinkType(line.drinkType),
     );
     if (duplicate) {
       duplicate.quantity += line.quantity;
@@ -1186,6 +1404,7 @@ function serializeState() {
     notes: state.notes,
     pickup: state.pickup,
     lastOptions: state.lastOptions,
+    lastDrinkType: state.lastDrinkType,
   };
 }
 
@@ -1243,6 +1462,10 @@ function restoreState() {
       parsed.lastOptions && typeof parsed.lastOptions === 'object'
         ? parsed.lastOptions
         : {};
+    state.lastDrinkType =
+      parsed.lastDrinkType && typeof parsed.lastDrinkType === 'object'
+        ? parsed.lastDrinkType
+        : {};
   } catch {
     state.cartLines = [];
   }
@@ -1288,6 +1511,12 @@ function resetMenuSelectionsToDefault() {
       const optionsRoot = menuNodeById(item.id)?.querySelector('.shawarma-options');
       applySandwichSelections(optionsRoot, defaults);
     }
+    if (item.isDrink) {
+      state.lastDrinkType[item.id] = '';
+      const select = menuNodeById(item.id)?.querySelector('.drink-type-select');
+      if (select) select.value = '';
+      clearDrinkError(item.id);
+    }
     updateMenuItemPrice(item.id);
   });
 }
@@ -1296,6 +1525,8 @@ function resetAllSelections() {
   if (ui.resetModal.modal) closeModal(ui.resetModal.modal);
   if (ui.lineEditor.modal) closeModal(ui.lineEditor.modal);
   if (ui.confirmModal.modal) closeModal(ui.confirmModal.modal);
+  if (ui.drinkChangeModal.modal) closeModal(ui.drinkChangeModal.modal);
+  ui.drinkChangeModal.pending = null;
 
   state.cartLines = [];
   state.name = '';
@@ -1303,6 +1534,7 @@ function resetAllSelections() {
   state.notes = '';
   state.pickup = '';
   state.lastOptions = {};
+  state.lastDrinkType = {};
   formErrorElement.textContent = '';
 
   resetMenuSelectionsToDefault();
@@ -1526,6 +1758,9 @@ function buildWhatsappMessage(entries, total) {
 }
 
 function buildItemModifiers(line) {
+  if (line.drinkType) {
+    return { drinkType: line.drinkType };
+  }
   if (!line.options) return {};
 
   const options = normalizeSandwichOptions(line.options);
@@ -1559,7 +1794,11 @@ function buildFirestoreOrderPayload(entries, total) {
       const unitPrice = lineUnitPrice(line);
       return {
         id: line.itemId,
-        name: line.name,
+        name: line.displayName || line.name,
+        category: line.category || '',
+        baseName: line.baseName || line.name,
+        drinkType: line.drinkType || '',
+        displayName: line.displayName || line.name,
         qty: line.quantity,
         basePrice: line.basePrice,
         modifiers: buildItemModifiers(line),
@@ -1682,6 +1921,40 @@ function buildResetAllModal() {
 function openResetAllConfirmation() {
   formErrorElement.textContent = '';
   openModal(ui.resetModal.modal);
+}
+
+function buildDrinkChangeModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'drinkChangeModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="drinkChangeTitle">
+      <h3 id="drinkChangeTitle">לשנות שתייה?</h3>
+      <p class="reset-modal-text">יש לך כבר כמות. לשנות את הבחירה יאפס את הכמות לפריט הזה.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="drinkChangeConfirm">שנה</button>
+        <button type="button" class="btn secondary" id="drinkChangeCancel">ביטול</button>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  ui.drinkChangeModal.modal = modal;
+  ui.drinkChangeModal.confirmButton = modal.querySelector('#drinkChangeConfirm');
+  ui.drinkChangeModal.cancelButton = modal.querySelector('#drinkChangeCancel');
+
+  ui.drinkChangeModal.cancelButton.addEventListener(
+    'click',
+    cancelPendingDrinkTypeChange,
+  );
+  ui.drinkChangeModal.confirmButton.addEventListener(
+    'click',
+    applyPendingDrinkTypeChange,
+  );
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) cancelPendingDrinkTypeChange();
+  });
 }
 
 function openLineEditor(lineId) {
@@ -1950,6 +2223,9 @@ function initItems() {
     if (item.isSandwich && !state.lastOptions[item.id]) {
       state.lastOptions[item.id] = copyOptions(DEFAULT_SANDWICH_OPTIONS);
     }
+    if (item.isDrink && typeof state.lastDrinkType[item.id] !== 'string') {
+      state.lastDrinkType[item.id] = '';
+    }
     attachControlsToMenuItem(item);
     updateMenuItemPrice(item.id);
   });
@@ -2031,6 +2307,7 @@ function init() {
   buildLineEditorModal();
   buildConfirmModal();
   buildResetAllModal();
+  buildDrinkChangeModal();
   initItems();
   restoreInputs();
   refreshPickupOptions();
