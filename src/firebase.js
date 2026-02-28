@@ -3,12 +3,13 @@ import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.13.2/firebas
 
 // TODO: Replace all placeholder values with your Firebase project config.
 const firebaseConfig = {
-  apiKey: 'REPLACE_WITH_FIREBASE_API_KEY',
-  authDomain: 'REPLACE_WITH_PROJECT.firebaseapp.com',
-  projectId: 'REPLACE_WITH_PROJECT_ID',
-  storageBucket: 'REPLACE_WITH_PROJECT.appspot.com',
-  messagingSenderId: 'REPLACE_WITH_MESSAGING_SENDER_ID',
-  appId: 'REPLACE_WITH_APP_ID',
+  apiKey: 'AIzaSyAWGRXQ0xwukf8mAnwR48p8mNtP9psE68',
+  authDomain: 'itziks-cart.firebaseapp.com',
+  projectId: 'itziks-cart',
+  storageBucket: 'itziks-cart.firebasestorage.app',
+  messagingSenderId: '94711142380',
+  appId: '1:94711142380:web:86473cdcc467b819da92c9',
+  measurementId: 'G-8Z6KCK64E0',
 };
 
 function hasPlaceholder(value) {
