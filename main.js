@@ -135,7 +135,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-4';
+const BUILD_VERSION = '20260228-5';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -647,9 +647,9 @@ function renderOptionChecks(
           ? ` data-addon-id="${option.id}" data-addon-price="${option.price}"`
           : '';
       return `
-        <label class="shawarma-check">
-          <input type="checkbox" class="${groupClass} group-choice" data-group="${groupKey}" value="${value}"${addonData} ${checked} />
-          ${label}${suffix}
+        <label class="shawarma-chip">
+          <input type="checkbox" class="${groupClass} group-choice chip-input" data-group="${groupKey}" value="${value}"${addonData} ${checked} />
+          <span class="chip-label">${label}${suffix}</span>
         </label>
       `;
     })
@@ -665,11 +665,41 @@ function renderOptionChecks(
     });
   const allChecked = allSelected ? 'checked' : '';
   return `
-    <label class="shawarma-check">
-      <input type="checkbox" class="group-all-toggle" data-group="${groupKey}" ${allChecked} />
-      הכול
+    <label class="shawarma-chip">
+      <input type="checkbox" class="group-all-toggle chip-input" data-group="${groupKey}" ${allChecked} />
+      <span class="chip-label">הכול</span>
     </label>
     ${optionMarkup}
+  `;
+}
+
+function renderOptionGroup({
+  title,
+  hint,
+  groupKey,
+  groupClass,
+  options,
+  selectedValues,
+  withPrice = false,
+  includeAllOption = false,
+}) {
+  return `
+    <div class="shawarma-group">
+      <div class="shawarma-group-head">
+        <div class="option-label">${title}</div>
+        <div class="option-hint">${hint}</div>
+      </div>
+      <div class="checks-wrap">
+        ${renderOptionChecks(
+          groupKey,
+          groupClass,
+          options,
+          selectedValues,
+          withPrice,
+          includeAllOption,
+        )}
+      </div>
+    </div>
   `;
 }
 
@@ -724,30 +754,42 @@ function buildSandwichOptionsEditor(itemId) {
   wrapper.className = 'shawarma-options';
   wrapper.dataset.itemId = itemId;
   wrapper.innerHTML = `
-    <div class="shawarma-group">
-        <div class="option-label">סלטים (בחירה חופשית)</div>
-        <div class="checks-wrap">
-        ${renderOptionChecks('salads', 'salad-choice', SALAD_OPTIONS, options.salads, false, true)}
-      </div>
-    </div>
-    <div class="shawarma-group">
-      <div class="option-label">רטבים (בחירה חופשית)</div>
-      <div class="checks-wrap">
-        ${renderOptionChecks('sauces', 'sauce-choice', SAUCE_OPTIONS, options.sauces, false, true)}
-      </div>
-    </div>
-    <div class="shawarma-group">
-      <div class="option-label">חמוצים (בחירה חופשית)</div>
-      <div class="checks-wrap">
-        ${renderOptionChecks('pickles', 'pickle-choice', PICKLE_OPTIONS, options.pickles, false, true)}
-      </div>
-    </div>
-    <div class="shawarma-group">
-      <div class="option-label">תוספת בתשלום</div>
-      <div class="checks-wrap">
-        ${renderOptionChecks('paidAddons', 'paid-addon', PAID_ADDONS, options.paidAddons, true)}
-      </div>
-    </div>
+    ${renderOptionGroup({
+      title: 'סלטים',
+      hint: 'בחרו כמה שתרצו',
+      groupKey: 'salads',
+      groupClass: 'salad-choice',
+      options: SALAD_OPTIONS,
+      selectedValues: options.salads,
+      includeAllOption: true,
+    })}
+    ${renderOptionGroup({
+      title: 'רטבים',
+      hint: 'בחרו כמה שתרצו',
+      groupKey: 'sauces',
+      groupClass: 'sauce-choice',
+      options: SAUCE_OPTIONS,
+      selectedValues: options.sauces,
+      includeAllOption: true,
+    })}
+    ${renderOptionGroup({
+      title: 'חמוצים',
+      hint: 'בחרו כמה שתרצו',
+      groupKey: 'pickles',
+      groupClass: 'pickle-choice',
+      options: PICKLE_OPTIONS,
+      selectedValues: options.pickles,
+      includeAllOption: true,
+    })}
+    ${renderOptionGroup({
+      title: 'תוספות בתשלום',
+      hint: 'בחירה תשפיע על המחיר',
+      groupKey: 'paidAddons',
+      groupClass: 'paid-addon',
+      options: PAID_ADDONS,
+      selectedValues: options.paidAddons,
+      withPrice: true,
+    })}
   `;
 
   initGroupAllBehavior(wrapper);
@@ -1449,30 +1491,42 @@ function openLineEditor(lineId) {
     const options = normalizeSandwichOptions(line.options);
     ui.lineEditor.content.innerHTML = `
       <div class="shawarma-options modal-options-grid">
-        <div class="shawarma-group">
-          <div class="option-label">סלטים (בחירה חופשית)</div>
-          <div class="checks-wrap">
-            ${renderOptionChecks('salads', 'salad-choice', SALAD_OPTIONS, options.salads, false, true)}
-          </div>
-        </div>
-        <div class="shawarma-group">
-          <div class="option-label">רטבים (בחירה חופשית)</div>
-          <div class="checks-wrap">
-            ${renderOptionChecks('sauces', 'sauce-choice', SAUCE_OPTIONS, options.sauces, false, true)}
-          </div>
-        </div>
-        <div class="shawarma-group">
-          <div class="option-label">חמוצים (בחירה חופשית)</div>
-          <div class="checks-wrap">
-            ${renderOptionChecks('pickles', 'pickle-choice', PICKLE_OPTIONS, options.pickles, false, true)}
-          </div>
-        </div>
-        <div class="shawarma-group">
-          <div class="option-label">תוספת בתשלום</div>
-          <div class="checks-wrap">
-            ${renderOptionChecks('paidAddons', 'paid-addon', PAID_ADDONS, options.paidAddons, true)}
-          </div>
-        </div>
+        ${renderOptionGroup({
+          title: 'סלטים',
+          hint: 'בחרו כמה שתרצו',
+          groupKey: 'salads',
+          groupClass: 'salad-choice',
+          options: SALAD_OPTIONS,
+          selectedValues: options.salads,
+          includeAllOption: true,
+        })}
+        ${renderOptionGroup({
+          title: 'רטבים',
+          hint: 'בחרו כמה שתרצו',
+          groupKey: 'sauces',
+          groupClass: 'sauce-choice',
+          options: SAUCE_OPTIONS,
+          selectedValues: options.sauces,
+          includeAllOption: true,
+        })}
+        ${renderOptionGroup({
+          title: 'חמוצים',
+          hint: 'בחרו כמה שתרצו',
+          groupKey: 'pickles',
+          groupClass: 'pickle-choice',
+          options: PICKLE_OPTIONS,
+          selectedValues: options.pickles,
+          includeAllOption: true,
+        })}
+        ${renderOptionGroup({
+          title: 'תוספות בתשלום',
+          hint: 'בחירה תשפיע על המחיר',
+          groupKey: 'paidAddons',
+          groupClass: 'paid-addon',
+          options: PAID_ADDONS,
+          selectedValues: options.paidAddons,
+          withPrice: true,
+        })}
       </div>
     `;
     initGroupAllBehavior(ui.lineEditor.content.querySelector('.shawarma-options'));
