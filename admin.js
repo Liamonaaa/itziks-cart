@@ -1,12 +1,6 @@
-import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  updateDoc,
-} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-import { db } from './src/firebase.js';
+const FIRESTORE_MODULE_URL =
+  'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+const FIREBASE_CONFIG_MODULE_URL = './src/firebase.js';
 
 const ADMIN_PIN = '1234';
 const SESSION_KEY = 'itziks-admin-pin-ok';
@@ -21,19 +15,19 @@ const STATUS_LABELS = {
 
 const STATUS_BUTTONS = ['new', 'in_progress', 'ready', 'delivered', 'cancelled'];
 
-const pinGate = document.getElementById('pinGate');
-const pinInput = document.getElementById('pinInput');
-const pinSubmit = document.getElementById('pinSubmit');
-const pinError = document.getElementById('pinError');
-const dashboard = document.getElementById('dashboard');
-const lastSync = document.getElementById('lastSync');
-const countNew = document.getElementById('countNew');
-const countInProgress = document.getElementById('countInProgress');
-const countReady = document.getElementById('countReady');
-const ordersList = document.getElementById('ordersList');
-const emptyState = document.getElementById('emptyState');
-const adminToast = document.getElementById('adminToast');
-const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
+let pinGate = null;
+let pinInput = null;
+let pinSubmit = null;
+let pinError = null;
+let dashboard = null;
+let lastSync = null;
+let countNew = null;
+let countInProgress = null;
+let countReady = null;
+let ordersList = null;
+let emptyState = null;
+let adminToast = null;
+let enableNotificationsBtn = null;
 
 const currencyFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -45,17 +39,13 @@ let toastTimer = null;
 let initializedSnapshot = false;
 let audioContext = null;
 let unsubscribeOrders = null;
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
+let firestoreApi = null;
+let db = null;
+let firebaseInitPromise = null;
 
 function showToast(message, timeoutMs = 2600) {
+  if (!adminToast) return;
+
   if (toastTimer) {
     clearTimeout(toastTimer);
     toastTimer = null;
@@ -68,6 +58,64 @@ function showToast(message, timeoutMs = 2600) {
     adminToast.classList.remove('show');
     toastTimer = null;
   }, timeoutMs);
+}
+
+function showFatalError(error) {
+  console.error('Admin runtime error:', error);
+  const message = 'שגיאה בטעינת מערכת המנהל. פתח קונסול.';
+
+  let errorNode = document.getElementById('adminFatalError');
+  if (!errorNode) {
+    errorNode = document.createElement('p');
+    errorNode.id = 'adminFatalError';
+    errorNode.style.margin = '0.75rem auto';
+    errorNode.style.maxWidth = '1200px';
+    errorNode.style.background = '#fae1e1';
+    errorNode.style.border = '1px solid #ce4c4c';
+    errorNode.style.color = '#831d1d';
+    errorNode.style.padding = '0.65rem 0.85rem';
+    errorNode.style.borderRadius = '10px';
+    document.body.prepend(errorNode);
+  }
+  errorNode.textContent = message;
+
+  if (pinError) {
+    pinError.textContent = message;
+  }
+}
+
+async function ensureFirebaseReady() {
+  if (firestoreApi && db) return { firestoreApi, db };
+
+  if (!firebaseInitPromise) {
+    firebaseInitPromise = Promise.all([
+      import(FIRESTORE_MODULE_URL),
+      import(FIREBASE_CONFIG_MODULE_URL),
+    ])
+      .then(([firestoreModule, firebaseModule]) => {
+        firestoreApi = firestoreModule;
+        db = firebaseModule?.db || null;
+        if (!db) {
+          throw new Error('Firestore DB was not initialized.');
+        }
+        return { firestoreApi, db };
+      })
+      .catch((error) => {
+        firebaseInitPromise = null;
+        throw error;
+      });
+  }
+
+  return firebaseInitPromise;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function formatMoney(amount) {
@@ -128,7 +176,10 @@ function formatModifiers(modifiers) {
 
 async function setOrderStatus(orderId, nextStatus) {
   try {
-    await updateDoc(doc(db, 'orders', orderId), { status: nextStatus });
+    const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+    await fs.updateDoc(fs.doc(firestoreDb, 'orders', orderId), {
+      status: nextStatus,
+    });
   } catch (error) {
     console.error('Failed to update order status', error);
     showToast('שגיאה בעדכון סטטוס ההזמנה');
@@ -286,6 +337,8 @@ function handleIncomingNewOrders(snapshot) {
 }
 
 function updateNotificationsButton() {
+  if (!enableNotificationsBtn) return;
+
   if (!('Notification' in window)) {
     enableNotificationsBtn.hidden = true;
     return;
@@ -318,17 +371,30 @@ async function requestNotificationPermission() {
   }
 }
 
-function startRealtimeOrders() {
-  if (!db) {
+async function startRealtimeOrders() {
+  let firebaseRuntime = null;
+  try {
+    firebaseRuntime = await ensureFirebaseReady();
+  } catch (error) {
+    console.error('Failed to initialize Firebase for admin dashboard', error);
     ordersList.innerHTML =
-      '<article class="order-card"><strong>Firebase לא מוגדר.</strong><p>עדכנו את <code>src/firebase.js</code> עם פרטי הפרויקט.</p></article>';
+      '<article class="order-card"><strong>שגיאת Firebase.</strong><p>לא ניתן להתחבר ל-Firestore. בדקו קונסול.</p></article>';
     emptyState.hidden = true;
+    showToast('שגיאת Firebase בלוח המנהל');
     return;
   }
 
-  const ordersQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+  if (typeof unsubscribeOrders === 'function') {
+    unsubscribeOrders();
+  }
 
-  unsubscribeOrders = onSnapshot(
+  const { firestoreApi: fs, db: firestoreDb } = firebaseRuntime;
+  const ordersQuery = fs.query(
+    fs.collection(firestoreDb, 'orders'),
+    fs.orderBy('createdAt', 'desc'),
+  );
+
+  unsubscribeOrders = fs.onSnapshot(
     ordersQuery,
     (snapshot) => {
       handleIncomingNewOrders(snapshot);
@@ -354,7 +420,9 @@ function unlockDashboard() {
   pinGate.hidden = true;
   dashboard.hidden = false;
   updateNotificationsButton();
-  startRealtimeOrders();
+  startRealtimeOrders().catch((error) => {
+    showFatalError(error);
+  });
 }
 
 function submitPin() {
@@ -368,18 +436,67 @@ function submitPin() {
   unlockDashboard();
 }
 
-pinSubmit.addEventListener('click', submitPin);
-pinInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') submitPin();
-});
-enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
-
-if (sessionStorage.getItem(SESSION_KEY) === '1') {
-  unlockDashboard();
+function initDomRefs() {
+  pinGate = document.getElementById('pinGate');
+  pinInput = document.getElementById('pinInput');
+  pinSubmit = document.getElementById('pinSubmit');
+  pinError = document.getElementById('pinError');
+  dashboard = document.getElementById('dashboard');
+  lastSync = document.getElementById('lastSync');
+  countNew = document.getElementById('countNew');
+  countInProgress = document.getElementById('countInProgress');
+  countReady = document.getElementById('countReady');
+  ordersList = document.getElementById('ordersList');
+  emptyState = document.getElementById('emptyState');
+  adminToast = document.getElementById('adminToast');
+  enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
 }
 
-window.addEventListener('beforeunload', () => {
-  if (typeof unsubscribeOrders === 'function') {
-    unsubscribeOrders();
+function initAdminPage() {
+  initDomRefs();
+
+  if (!pinGate || !pinInput || !pinSubmit || !pinError || !dashboard) {
+    throw new Error('Admin page required elements are missing.');
   }
+
+  pinSubmit.addEventListener('click', submitPin);
+  pinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') submitPin();
+  });
+
+  if (enableNotificationsBtn) {
+    enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
+  }
+
+  if (sessionStorage.getItem(SESSION_KEY) === '1') {
+    unlockDashboard();
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (typeof unsubscribeOrders === 'function') {
+      unsubscribeOrders();
+    }
+  });
+}
+
+function bootAdminPage() {
+  try {
+    initAdminPage();
+  } catch (error) {
+    showFatalError(error);
+  }
+}
+
+window.addEventListener('error', (event) => {
+  showFatalError(event.error || event.message || new Error('Unknown runtime error'));
 });
+
+window.addEventListener('unhandledrejection', (event) => {
+  showFatalError(event.reason || new Error('Unhandled promise rejection'));
+});
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootAdminPage, { once: true });
+} else {
+  bootAdminPage();
+}
