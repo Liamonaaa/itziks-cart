@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./admin.css?v=20260228-6" />
+    <link rel="stylesheet" href="./admin.css?v=20260228-7" />
   </head>
   <body>
     <div class="pin-gate" id="pinGate">
@@ -37,45 +37,79 @@
           <p id="lastSync">ממתין לעדכון...</p>
         </div>
         <div class="topbar-actions">
+          <button id="openHistoryViewBtn" type="button">היסטוריית הזמנות</button>
           <button id="enableNotificationsBtn" type="button">אפשר התראות דפדפן</button>
           <button id="openDeleteOrdersBtn" type="button">מחיקת הזמנות</button>
           <button id="logoutBtn" class="logout-btn" type="button">התנתק</button>
         </div>
       </header>
 
-      <section class="counters">
-        <article>
-          <span>חדש</span>
-          <strong id="countNew">0</strong>
-        </article>
-        <article>
-          <span>בהכנה</span>
-          <strong id="countInProgress">0</strong>
-        </article>
-        <article>
-          <span>מוכן</span>
-          <strong id="countReady">0</strong>
-        </article>
+      <section id="liveBoardView">
+        <section class="counters">
+          <article>
+            <span>חדש</span>
+            <strong id="countNew">0</strong>
+          </article>
+          <article>
+            <span>בהכנה</span>
+            <strong id="countInProgress">0</strong>
+          </article>
+          <article>
+            <span>מוכן</span>
+            <strong id="countReady">0</strong>
+          </article>
+        </section>
+
+        <section class="delivery-filter-row">
+          <label class="delivery-filter-toggle" for="onlyDeniedDeliveryToggle">
+            <input id="onlyDeniedDeliveryToggle" type="checkbox" />
+            <span>הראה רק לקוחות שסימנו לא נמסר</span>
+          </label>
+        </section>
+
+        <section class="selection-toolbar" id="selectionToolbar" hidden>
+          <div class="selection-toolbar-info" id="selectionToolbarInfo">בחירת הזמנות פעילה</div>
+          <div class="selection-toolbar-actions">
+            <button id="selectAllOrdersBtn" type="button">בחר הכול</button>
+            <button id="clearAllOrdersBtn" type="button">בטל הכול</button>
+            <button id="deleteSelectedOrdersBtn" class="danger" type="button">מחק נבחרים (0)</button>
+          </div>
+        </section>
+
+        <section id="ordersList" class="orders-list" aria-live="polite"></section>
+        <p id="emptyState" class="empty-state">אין הזמנות להצגה כרגע.</p>
       </section>
 
-      <section class="delivery-filter-row">
-        <label class="delivery-filter-toggle" for="onlyDeniedDeliveryToggle">
-          <input id="onlyDeniedDeliveryToggle" type="checkbox" />
-          <span>הראה רק לקוחות שסימנו לא נמסר</span>
-        </label>
-      </section>
+      <section id="historyView" hidden>
+        <header class="history-head">
+          <div>
+            <h3>היסטוריית הזמנות</h3>
+            <p>מוצגות רק הזמנות שהלקוח אישר כנמסרות.</p>
+          </div>
+          <button id="closeHistoryViewBtn" type="button">חזרה ללוח הזמנות</button>
+        </header>
 
-      <section class="selection-toolbar" id="selectionToolbar" hidden>
-        <div class="selection-toolbar-info" id="selectionToolbarInfo">בחירת הזמנות פעילה</div>
-        <div class="selection-toolbar-actions">
-          <button id="selectAllOrdersBtn" type="button">בחר הכול</button>
-          <button id="clearAllOrdersBtn" type="button">בטל הכול</button>
-          <button id="deleteSelectedOrdersBtn" class="danger" type="button">מחק נבחרים (0)</button>
+        <section class="history-controls">
+          <input
+            id="historySearchInput"
+            type="search"
+            placeholder="חיפוש לפי שם / טלפון / מספר הזמנה"
+            autocomplete="off"
+          />
+          <div class="history-range-buttons" id="historyRangeButtons">
+            <button type="button" data-range="today">היום</button>
+            <button type="button" data-range="yesterday">אתמול</button>
+            <button type="button" data-range="7d">7 ימים</button>
+            <button type="button" data-range="all" class="active">הכול</button>
+          </div>
+        </section>
+
+        <section id="historyOrdersList" class="orders-list" aria-live="polite"></section>
+        <p id="historyEmptyState" class="empty-state">אין הזמנות בהיסטוריה כרגע.</p>
+        <div class="history-load-more-wrap">
+          <button id="historyLoadMoreBtn" type="button" hidden>טען עוד</button>
         </div>
       </section>
-
-      <section id="ordersList" class="orders-list" aria-live="polite"></section>
-      <p id="emptyState" class="empty-state">אין הזמנות להצגה כרגע.</p>
     </main>
 
     <div class="admin-modal-backdrop" id="deleteOrdersBackdrop" hidden></div>
@@ -144,6 +178,6 @@
 
     <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./admin.js?v=20260228-6"></script>
+    <script type="module" src="./admin.js?v=20260228-7"></script>
   </body>
 </html>

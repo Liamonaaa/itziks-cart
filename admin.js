@@ -6,6 +6,7 @@ const ADMIN_PIN = '1234';
 const AUTH_STORAGE_KEY = 'itziks-admin-pin-ok';
 const DELETE_CONFIRM_PHRASE = 'מחק';
 const DELETE_BATCH_SIZE = 200;
+const HISTORY_PAGE_SIZE = 50;
 
 const STATUS_LABELS = {
   new: 'חדש',
@@ -27,12 +28,21 @@ let pinInput = null;
 let pinSubmit = null;
 let pinError = null;
 let dashboard = null;
+let liveBoardView = null;
+let historyView = null;
 let lastSync = null;
 let countNew = null;
 let countInProgress = null;
 let countReady = null;
 let ordersList = null;
 let emptyState = null;
+let historyOrdersList = null;
+let historyEmptyState = null;
+let historyLoadMoreBtn = null;
+let openHistoryViewBtn = null;
+let closeHistoryViewBtn = null;
+let historySearchInput = null;
+let historyRangeButtons = null;
 let adminToast = null;
 let enableNotificationsBtn = null;
 let logoutBtn = null;
@@ -71,6 +81,10 @@ let deleteMode = 'all';
 let deletionInFlight = false;
 let isDeleteModalOpen = false;
 let showOnlyDeniedDelivery = false;
+let isHistoryView = false;
+let historySearchTerm = '';
+let historyDateRange = 'all';
+let historyVisibleCount = HISTORY_PAGE_SIZE;
 const selectedOrderIds = new Set();
 
 function showToast(message, timeoutMs = 2600) {
@@ -156,6 +170,24 @@ function formatTimestamp(value) {
   if (!value?.toDate) return '--';
   const date = value.toDate();
   return date.toLocaleString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function toMillis(value) {
+  if (value?.toMillis) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value);
+  const millis = parsed.getTime();
+  return Number.isNaN(millis) ? 0 : millis;
+}
+
+function formatMillis(millis) {
+  if (!Number.isFinite(millis) || millis <= 0) return '--';
+  return new Date(millis).toLocaleString('he-IL', {
     hour: '2-digit',
     minute: '2-digit',
     day: '2-digit',
@@ -282,6 +314,82 @@ function hasDeniedDelivery(order) {
   return order?.status === 'delivered' && order?.deliveryConfirmed === false;
 }
 
+function isConfirmedDelivery(order) {
+  return order?.deliveryConfirmed === true;
+}
+
+function boardOrdersSource() {
+  return latestOrders.filter((order) => !isConfirmedDelivery(order));
+}
+
+function currentBoardVisibleOrders() {
+  const source = boardOrdersSource();
+  return showOnlyDeniedDelivery ? source.filter((order) => hasDeniedDelivery(order)) : source;
+}
+
+function confirmationMillis(order) {
+  const confirmedMillis = toMillis(order?.deliveryConfirmedAt);
+  if (confirmedMillis > 0) return confirmedMillis;
+  return toMillis(order?.createdAt);
+}
+
+function normalizeSearchValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function matchesHistorySearch(order, normalizedQuery) {
+  if (!normalizedQuery) return true;
+  const shortId = order.id?.slice(0, 8) || '';
+  const fields = [
+    order.customer?.name || '',
+    order.customer?.phone || '',
+    order.id || '',
+    shortId,
+  ]
+    .join(' ')
+    .toLowerCase();
+  return fields.includes(normalizedQuery);
+}
+
+function matchesHistoryDateRange(order, now = new Date()) {
+  if (historyDateRange === 'all') return true;
+  const millis = confirmationMillis(order);
+  if (!millis) return false;
+
+  const reference = new Date(millis);
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(todayStart.getDate() + 1);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(todayStart.getDate() - 1);
+
+  if (historyDateRange === 'today') {
+    return reference >= todayStart && reference < tomorrowStart;
+  }
+
+  if (historyDateRange === 'yesterday') {
+    return reference >= yesterdayStart && reference < todayStart;
+  }
+
+  if (historyDateRange === '7d') {
+    const sevenDaysAgo = new Date(todayStart);
+    sevenDaysAgo.setDate(todayStart.getDate() - 6);
+    return reference >= sevenDaysAgo && reference < tomorrowStart;
+  }
+
+  return true;
+}
+
+function filteredHistoryOrders() {
+  const normalizedQuery = normalizeSearchValue(historySearchTerm);
+  return latestOrders
+    .filter((order) => isConfirmedDelivery(order))
+    .filter((order) => matchesHistorySearch(order, normalizedQuery))
+    .filter((order) => matchesHistoryDateRange(order))
+    .sort((left, right) => confirmationMillis(right) - confirmationMillis(left));
+}
+
 function deliveryStatusPresentation(order) {
   const fallback = {
     pillClass: order.status,
@@ -322,6 +430,70 @@ function deliveryStatusPresentation(order) {
   };
 }
 
+function renderHistoryOrders() {
+  if (!historyOrdersList || !historyEmptyState || !historyLoadMoreBtn) return;
+
+  const historyOrders = filteredHistoryOrders();
+  const visibleOrders = historyOrders.slice(0, historyVisibleCount);
+  historyOrdersList.innerHTML = '';
+
+  const hasOrders = visibleOrders.length > 0;
+  historyEmptyState.hidden = hasOrders;
+  if (!hasOrders) {
+    historyEmptyState.textContent = 'אין הזמנות בהיסטוריה לפי הסינון הנוכחי.';
+  }
+
+  visibleOrders.forEach((order) => {
+    const card = document.createElement('article');
+    card.className = 'order-card';
+    const confirmedAtText = formatMillis(confirmationMillis(order));
+
+    card.innerHTML = `
+      <div class="order-head">
+        <div class="order-head-main">
+          <h3>הזמנה #${escapeHtml(order.id.slice(0, 8))}</h3>
+          <span class="status-pill delivered-confirmed">נמסר (הלקוח אישר)</span>
+          <div class="status-subtext">אושר בתאריך: ${escapeHtml(confirmedAtText)}</div>
+        </div>
+        <div><strong>${formatMoney(order.total)}</strong></div>
+      </div>
+      <div class="order-meta">
+        <div><strong>התקבל:</strong> ${escapeHtml(formatTimestamp(order.createdAt))}</div>
+        <div><strong>לקוח:</strong> ${escapeHtml(order.customer?.name || '--')} | ${escapeHtml(order.customer?.phone || '--')}</div>
+        <div><strong>איסוף:</strong> ${escapeHtml(formatPickupText(order.pickup))}</div>
+        <div><strong>הערות:</strong> ${escapeHtml(order.notes || 'ללא')}</div>
+      </div>
+      <ul class="order-items">${renderItems(order.items)}</ul>
+      <div class="order-foot">
+        <strong>סה"כ: ${formatMoney(order.total)}</strong>
+      </div>
+    `;
+
+    historyOrdersList.append(card);
+  });
+
+  const hasMore = historyOrders.length > visibleOrders.length;
+  historyLoadMoreBtn.hidden = !hasMore;
+  historyLoadMoreBtn.disabled = !hasMore;
+}
+
+function showHistoryBoard() {
+  isHistoryView = true;
+  if (liveBoardView) liveBoardView.hidden = true;
+  if (historyView) historyView.hidden = false;
+  if (openHistoryViewBtn) openHistoryViewBtn.hidden = true;
+  updateSelectionToolbar();
+  renderHistoryOrders();
+}
+
+function showLiveBoard() {
+  isHistoryView = false;
+  if (historyView) historyView.hidden = true;
+  if (liveBoardView) liveBoardView.hidden = false;
+  if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
+  updateSelectionToolbar();
+}
+
 function getDeleteModeValue() {
   if (!deleteOrdersModal) return 'all';
   const checked = deleteOrdersModal.querySelector('input[name="deleteMode"]:checked');
@@ -346,8 +518,8 @@ function getSelectedStatusFilters() {
   ).map((input) => input.value);
 }
 
-function pruneSelectedOrderIds() {
-  const existingIds = new Set(latestOrders.map((order) => order.id));
+function pruneSelectedOrderIds(sourceOrders = latestOrders) {
+  const existingIds = new Set(sourceOrders.map((order) => order.id));
   for (const orderId of selectedOrderIds) {
     if (!existingIds.has(orderId)) {
       selectedOrderIds.delete(orderId);
@@ -356,7 +528,7 @@ function pruneSelectedOrderIds() {
 }
 
 function getMatchedOrderIds(mode = deleteMode) {
-  pruneSelectedOrderIds();
+  pruneSelectedOrderIds(currentBoardVisibleOrders());
 
   if (mode === 'all') {
     return latestOrders.map((order) => order.id);
@@ -393,7 +565,7 @@ function getDeleteOptionLabel(mode = deleteMode) {
 function updateSelectionToolbar() {
   if (!selectionToolbar || !selectionToolbarInfo || !deleteSelectedOrdersBtn) return;
 
-  const selectionModeEnabled = deleteMode === 'selection' && !dashboard.hidden;
+  const selectionModeEnabled = deleteMode === 'selection' && !dashboard.hidden && !isHistoryView;
   selectionToolbar.hidden = !selectionModeEnabled;
   document.body.classList.toggle('selection-mode', selectionModeEnabled);
 
@@ -458,14 +630,11 @@ function closeDeleteOrdersModal() {
   updateDeleteUiState();
 }
 
-function renderOrders(orders) {
-  latestOrders = Array.isArray(orders) ? orders : [];
-  pruneSelectedOrderIds();
+function renderOrders() {
+  const boardVisibleOrders = currentBoardVisibleOrders();
+  pruneSelectedOrderIds(boardVisibleOrders);
   ordersList.innerHTML = '';
-  const visibleOrders = showOnlyDeniedDelivery
-    ? latestOrders.filter((order) => hasDeniedDelivery(order))
-    : latestOrders;
-  const hasOrders = visibleOrders.length > 0;
+  const hasOrders = boardVisibleOrders.length > 0;
   emptyState.hidden = hasOrders;
   emptyState.textContent = showOnlyDeniedDelivery
     ? 'אין הזמנות שהלקוח סימן כלא נמסר.'
@@ -475,7 +644,7 @@ function renderOrders(orders) {
 
   if (!hasOrders) return;
 
-  visibleOrders.forEach((order) => {
+  boardVisibleOrders.forEach((order) => {
     const isChecked = selectedOrderIds.has(order.id);
     const statusView = deliveryStatusPresentation(order);
     const card = document.createElement('article');
@@ -803,8 +972,10 @@ async function startRealtimeOrders() {
           return rightMillis - leftMillis;
         });
 
-      updateCounters(orders);
-      renderOrders(orders);
+      latestOrders = orders;
+      updateCounters(boardOrdersSource());
+      renderOrders();
+      renderHistoryOrders();
       lastSync.textContent = `עודכן: ${new Date().toLocaleTimeString('he-IL')}`;
     },
     (error) => {
@@ -845,9 +1016,27 @@ function resetDashboardView() {
   latestOrders = [];
   selectedOrderIds.clear();
   showOnlyDeniedDelivery = false;
+  isHistoryView = false;
+  historySearchTerm = '';
+  historyDateRange = 'all';
+  historyVisibleCount = HISTORY_PAGE_SIZE;
   if (onlyDeniedDeliveryToggle) {
     onlyDeniedDeliveryToggle.checked = false;
   }
+  if (historySearchInput) {
+    historySearchInput.value = '';
+  }
+  if (historyRangeButtons) {
+    historyRangeButtons.querySelectorAll('[data-range]').forEach((button) => {
+      button.classList.toggle('active', button.dataset.range === 'all');
+    });
+  }
+  if (historyOrdersList) historyOrdersList.innerHTML = '';
+  if (historyEmptyState) historyEmptyState.hidden = false;
+  if (historyLoadMoreBtn) historyLoadMoreBtn.hidden = true;
+  if (historyView) historyView.hidden = true;
+  if (liveBoardView) liveBoardView.hidden = false;
+  if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
   if (lastSync) {
     lastSync.textContent = 'ממתין לעדכון...';
   }
@@ -931,12 +1120,21 @@ function initDomRefs() {
   pinSubmit = document.getElementById('pinSubmit');
   pinError = document.getElementById('pinError');
   dashboard = document.getElementById('dashboard');
+  liveBoardView = document.getElementById('liveBoardView');
+  historyView = document.getElementById('historyView');
   lastSync = document.getElementById('lastSync');
   countNew = document.getElementById('countNew');
   countInProgress = document.getElementById('countInProgress');
   countReady = document.getElementById('countReady');
   ordersList = document.getElementById('ordersList');
   emptyState = document.getElementById('emptyState');
+  historyOrdersList = document.getElementById('historyOrdersList');
+  historyEmptyState = document.getElementById('historyEmptyState');
+  historyLoadMoreBtn = document.getElementById('historyLoadMoreBtn');
+  openHistoryViewBtn = document.getElementById('openHistoryViewBtn');
+  closeHistoryViewBtn = document.getElementById('closeHistoryViewBtn');
+  historySearchInput = document.getElementById('historySearchInput');
+  historyRangeButtons = document.getElementById('historyRangeButtons');
   adminToast = document.getElementById('adminToast');
   enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
   logoutBtn = document.getElementById('logoutBtn');
@@ -973,6 +1171,46 @@ function initAdminPage() {
 
   if (enableNotificationsBtn) {
     enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
+  }
+
+  if (openHistoryViewBtn) {
+    openHistoryViewBtn.addEventListener('click', () => {
+      showHistoryBoard();
+    });
+  }
+
+  if (closeHistoryViewBtn) {
+    closeHistoryViewBtn.addEventListener('click', () => {
+      showLiveBoard();
+    });
+  }
+
+  if (historySearchInput) {
+    historySearchInput.addEventListener('input', () => {
+      historySearchTerm = historySearchInput.value || '';
+      historyVisibleCount = HISTORY_PAGE_SIZE;
+      renderHistoryOrders();
+    });
+  }
+
+  if (historyRangeButtons) {
+    historyRangeButtons.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-range]');
+      if (!button) return;
+      historyDateRange = button.dataset.range || 'all';
+      historyVisibleCount = HISTORY_PAGE_SIZE;
+      historyRangeButtons.querySelectorAll('button[data-range]').forEach((node) => {
+        node.classList.toggle('active', node === button);
+      });
+      renderHistoryOrders();
+    });
+  }
+
+  if (historyLoadMoreBtn) {
+    historyLoadMoreBtn.addEventListener('click', () => {
+      historyVisibleCount += HISTORY_PAGE_SIZE;
+      renderHistoryOrders();
+    });
   }
 
   if (openDeleteOrdersBtn) {
@@ -1024,15 +1262,15 @@ function initAdminPage() {
 
   if (selectAllOrdersBtn) {
     selectAllOrdersBtn.addEventListener('click', () => {
-      latestOrders.forEach((order) => selectedOrderIds.add(order.id));
-      renderOrders(latestOrders);
+      currentBoardVisibleOrders().forEach((order) => selectedOrderIds.add(order.id));
+      renderOrders();
     });
   }
 
   if (clearAllOrdersBtn) {
     clearAllOrdersBtn.addEventListener('click', () => {
       selectedOrderIds.clear();
-      renderOrders(latestOrders);
+      renderOrders();
     });
   }
 
@@ -1046,7 +1284,7 @@ function initAdminPage() {
     onlyDeniedDeliveryToggle.checked = false;
     onlyDeniedDeliveryToggle.addEventListener('change', () => {
       showOnlyDeniedDelivery = onlyDeniedDeliveryToggle.checked;
-      renderOrders(latestOrders);
+      renderOrders();
     });
   }
 
