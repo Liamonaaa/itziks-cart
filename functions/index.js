@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+﻿const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -8,6 +8,7 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
+
 const SMS_TEXT = 'הזמנתך התקבלה - חזי בצומת';
 
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
@@ -20,39 +21,37 @@ function normalizeIsraeliPhone(rawPhone) {
   const trimmed = rawPhone.trim();
   if (!trimmed) return null;
 
-  let normalized = trimmed.replace(/[^\d+]/g, '');
+  let normalized = trimmed.replace(/[\s\-()]/g, '');
   if (normalized.startsWith('00')) {
     normalized = `+${normalized.slice(2)}`;
   }
 
-  if (normalized.startsWith('+')) {
-    const e164 = `+${normalized.slice(1).replace(/\D/g, '')}`;
-    return /^\+9725\d{8}$/.test(e164) ? e164 : null;
+  if (normalized.startsWith('+972')) {
+    return /^\+972\d{9}$/.test(normalized) ? normalized : null;
   }
 
-  const digitsOnly = normalized.replace(/\D/g, '');
-  if (/^05\d{8}$/.test(digitsOnly)) {
-    return `+972${digitsOnly.slice(1)}`;
+  if (/^0\d{9}$/.test(normalized)) {
+    return `+972${normalized.slice(1)}`;
   }
-  if (/^9725\d{8}$/.test(digitsOnly)) {
-    return `+${digitsOnly}`;
+
+  if (/^972\d{9}$/.test(normalized)) {
+    return `+${normalized}`;
   }
 
   return null;
 }
 
 function getOrderPhone(orderData) {
-  if (typeof orderData?.customer?.phone === 'string') {
-    return orderData.customer.phone;
-  }
-  if (typeof orderData?.phone === 'string') {
-    return orderData.phone;
-  }
+  if (typeof orderData?.phone === 'string') return orderData.phone;
+  if (typeof orderData?.phoneNumber === 'string') return orderData.phoneNumber;
+  if (typeof orderData?.customerPhone === 'string') return orderData.customerPhone;
+  if (typeof orderData?.customer?.phone === 'string') return orderData.customer.phone;
   return '';
 }
 
 function sanitizeErrorMessage(error) {
-  const message = typeof error?.message === 'string' ? error.message.trim() : 'unknown_error';
+  const message =
+    typeof error?.message === 'string' ? error.message.trim() : 'unknown_error';
   return message.slice(0, 500);
 }
 
@@ -69,63 +68,63 @@ exports.onOrderCreatedSendSms = onDocumentCreated(
     try {
       const latestSnapshot = await orderRef.get();
       if (!latestSnapshot.exists) {
-        logger.warn('Order document missing in onCreate trigger.', { orderId });
+        logger.warn('Order doc missing in SMS trigger.', { orderId });
         return;
       }
 
       const orderData = latestSnapshot.data() || {};
-      if (orderData.smsStatus === 'sent' || orderData.smsSentAt) {
-        logger.info('SMS already marked as sent, skipping duplicate send.', { orderId });
+      if (orderData.smsSent === true || orderData.smsSentAt) {
+        logger.info('SMS already sent, skipping duplicate execution.', { orderId });
         return;
       }
 
-      const normalizedPhone = normalizeIsraeliPhone(getOrderPhone(orderData));
+      const rawPhone = getOrderPhone(orderData);
+      const normalizedPhone = normalizeIsraeliPhone(rawPhone);
       if (!normalizedPhone) {
+        logger.warn('Invalid phone; SMS skipped.', { orderId, rawPhone });
         await orderRef.set(
           {
+            smsSent: false,
+            smsSentAt: FieldValue.serverTimestamp(),
+            smsError: 'invalid_phone',
             smsStatus: 'invalid_phone',
-            smsError: 'invalid_phone_format',
-            smsSentAt: FieldValue.delete(),
           },
           { merge: true },
         );
-        logger.warn('Invalid order phone, SMS skipped.', {
-          orderId,
-          rawPhone: getOrderPhone(orderData),
-        });
         return;
       }
 
-      const twilioClient = twilio(
+      const client = twilio(
         TWILIO_ACCOUNT_SID.value(),
         TWILIO_AUTH_TOKEN.value(),
       );
-      const fromNumber = TWILIO_FROM_NUMBER.value();
 
-      await twilioClient.messages.create({
+      await client.messages.create({
         to: normalizedPhone,
-        from: fromNumber,
+        from: TWILIO_FROM_NUMBER.value(),
         body: SMS_TEXT,
       });
 
       await orderRef.set(
         {
-          smsStatus: 'sent',
-          smsError: FieldValue.delete(),
+          smsSent: true,
           smsSentAt: FieldValue.serverTimestamp(),
+          smsError: null,
+          smsStatus: 'sent',
         },
         { merge: true },
       );
 
-      logger.info('Order SMS sent successfully.', { orderId, to: normalizedPhone });
+      logger.info('Order SMS sent.', { orderId, to: normalizedPhone });
     } catch (error) {
       const smsError = sanitizeErrorMessage(error);
-      logger.error('Failed to send order SMS.', { orderId, smsError });
+      logger.error('Order SMS failed.', { orderId, smsError });
       await orderRef.set(
         {
-          smsStatus: 'failed',
+          smsSent: false,
+          smsSentAt: FieldValue.serverTimestamp(),
           smsError,
-          smsSentAt: FieldValue.delete(),
+          smsStatus: 'failed',
         },
         { merge: true },
       );

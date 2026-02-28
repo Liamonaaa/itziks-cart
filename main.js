@@ -1769,6 +1769,7 @@ function buildFirestoreOrderPayload(entries, total) {
       name: state.name.trim(),
       phone: state.phone.trim(),
     },
+    phone: state.phone.trim(),
     pickup,
     items: entries.map((line) => {
       const unitPrice = lineUnitPrice(line);

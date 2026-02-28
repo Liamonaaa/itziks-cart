@@ -3,13 +3,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /orders/{orderId} {
       function smsFieldsMissingOnCreate() {
-        return !('smsStatus' in request.resource.data)
+        return !('smsSent' in request.resource.data)
+          && !('smsStatus' in request.resource.data)
           && !('smsError' in request.resource.data)
           && !('smsSentAt' in request.resource.data);
       }
 
       function smsFieldsUnchangedOnUpdate() {
-        return request.resource.data.smsStatus == resource.data.smsStatus
+        return request.resource.data.smsSent == resource.data.smsSent
+          && request.resource.data.smsStatus == resource.data.smsStatus
           && request.resource.data.smsError == resource.data.smsError
           && request.resource.data.smsSentAt == resource.data.smsSentAt;
       }

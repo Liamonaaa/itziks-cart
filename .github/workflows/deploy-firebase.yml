@@ -1,0 +1,46 @@
+name: Deploy Firebase
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "functions/**"
+      - "firestore.rules"
+      - ".firebaserc"
+      - "firebase.json"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Install Function Dependencies
+        working-directory: functions
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Validate Function Syntax
+        run: node --check functions/index.js
+
+      - name: Deploy Functions and Firestore Rules
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          echo "Deploying Firebase functions + Firestore rules to project itziks-cart..."
+          firebase deploy --only functions,firestore:rules --project itziks-cart --non-interactive

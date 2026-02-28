@@ -3,10 +3,10 @@
   "private": true,
   "main": "index.js",
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "scripts": {
-    "deploy": "firebase deploy --only functions:onOrderCreatedSendSms,firestore:rules",
+    "deploy": "firebase deploy --only functions,firestore:rules --project itziks-cart",
     "serve": "firebase emulators:start --only functions,firestore"
   },
   "dependencies": {
