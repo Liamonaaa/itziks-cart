@@ -18,7 +18,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: 'Rubik', system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Heebo", "Rubik", "Arial", sans-serif;
   background: radial-gradient(circle at top, #fffaf3 0%, var(--bg) 55%);
   color: var(--ink);
 }
