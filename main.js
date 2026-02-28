@@ -121,6 +121,8 @@ let customSelectGlobalBound = false;
 let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
+let buildVersionMarker = null;
+const BUILD_VERSION = '20260228-1';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -208,6 +210,44 @@ function syncMobileCartLayout() {
   cartPanel.removeAttribute('role');
   cartPanel.removeAttribute('aria-modal');
   mobileCartToggle?.setAttribute('aria-expanded', 'false');
+}
+
+function ensureBuildVersionMarker() {
+  if (buildVersionMarker) return buildVersionMarker;
+
+  const marker = document.createElement('div');
+  marker.id = 'buildVersionMarker';
+  marker.setAttribute('aria-hidden', 'true');
+  marker.textContent = `v: ${BUILD_VERSION}`;
+  Object.assign(marker.style, {
+    position: 'fixed',
+    left: '0.45rem',
+    bottom: 'calc(0.35rem + env(safe-area-inset-bottom))',
+    padding: '0.12rem 0.35rem',
+    borderRadius: '6px',
+    background: 'rgba(43, 32, 24, 0.65)',
+    color: '#fff',
+    fontSize: '10px',
+    lineHeight: '1.2',
+    letterSpacing: '0.01em',
+    fontFamily: 'monospace',
+    zIndex: '69',
+    pointerEvents: 'none',
+  });
+  marker.hidden = true;
+  document.body.append(marker);
+  buildVersionMarker = marker;
+  return marker;
+}
+
+function syncBuildVersionMarker() {
+  const marker = ensureBuildVersionMarker();
+  marker.hidden = !isMobileViewport();
+}
+
+function syncViewportUi() {
+  syncMobileCartLayout();
+  syncBuildVersionMarker();
 }
 
 function showToast(message, timeoutMs = 2000) {
@@ -1606,11 +1646,11 @@ function init() {
   initItems();
   restoreInputs();
   refreshPickupOptions();
-  syncMobileCartLayout();
+  syncViewportUi();
   if (typeof mobileViewportQuery.addEventListener === 'function') {
-    mobileViewportQuery.addEventListener('change', syncMobileCartLayout);
+    mobileViewportQuery.addEventListener('change', syncViewportUi);
   } else if (typeof mobileViewportQuery.addListener === 'function') {
-    mobileViewportQuery.addListener(syncMobileCartLayout);
+    mobileViewportQuery.addListener(syncViewportUi);
   }
   bindFormEvents();
   renderCart();
