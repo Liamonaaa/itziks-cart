@@ -8,8 +8,9 @@ const firebaseConfig = {
   storageBucket: "itziks-cart.firebasestorage.app",
   messagingSenderId: "94711142380",
   appId: "1:94711142380:web:86473cdcc467b819da92c9",
-  measurementId: "G-8Z6KCK64E0"
+  measurementId: "G-8Z6KCK64E0",
 };
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const isFirebaseConfigured = true;

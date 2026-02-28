@@ -1,6 +1,6 @@
 // עריכת וואטסאפ: עדכנו כאן את מספר היעד
 import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
-import { db } from './src/firebase.js';
+import { db } from "./src/firebase.js";
 
 const WHATSAPP_NUMBER = '972500000000';
 

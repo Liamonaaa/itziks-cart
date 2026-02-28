@@ -1,4 +1,4 @@
-import { db } from './src/firebase.js';
+import { db } from "./src/firebase.js";
 const FIRESTORE_MODULE_URL =
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
@@ -391,20 +391,27 @@ async function startRealtimeOrders() {
   }
 
   const { firestoreApi: fs, db: firestoreDb } = firebaseRuntime;
-  const ordersQuery = fs.query(
-    fs.collection(firestoreDb, 'orders'),
-    fs.orderBy('createdAt', 'desc'),
-  );
+  const ordersRef = fs.collection(firestoreDb, 'orders');
 
   unsubscribeOrders = fs.onSnapshot(
-    ordersQuery,
+    ordersRef,
     (snapshot) => {
       handleIncomingNewOrders(snapshot);
-      const orders = snapshot.docs.map((orderDoc) => ({
-        id: orderDoc.id,
-        status: 'new',
-        ...orderDoc.data(),
-      }));
+      const orders = snapshot.docs
+        .map((orderDoc) => ({
+          id: orderDoc.id,
+          status: 'new',
+          ...orderDoc.data(),
+        }))
+        .sort((left, right) => {
+          const leftMillis = left.createdAt?.toMillis
+            ? left.createdAt.toMillis()
+            : 0;
+          const rightMillis = right.createdAt?.toMillis
+            ? right.createdAt.toMillis()
+            : 0;
+          return rightMillis - leftMillis;
+        });
 
       updateCounters(orders);
       renderOrders(orders);
