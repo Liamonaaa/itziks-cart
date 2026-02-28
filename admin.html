@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./admin.css?v=20260228-4" />
+    <link rel="stylesheet" href="./admin.css?v=20260228-5" />
   </head>
   <body>
     <div class="pin-gate" id="pinGate">
@@ -38,6 +38,7 @@
         </div>
         <div class="topbar-actions">
           <button id="enableNotificationsBtn" type="button">אפשר התראות דפדפן</button>
+          <button id="openDeleteOrdersBtn" type="button">מחיקת הזמנות</button>
           <button id="logoutBtn" class="logout-btn" type="button">התנתק</button>
         </div>
       </header>
@@ -57,12 +58,85 @@
         </article>
       </section>
 
+      <section class="selection-toolbar" id="selectionToolbar" hidden>
+        <div class="selection-toolbar-info" id="selectionToolbarInfo">בחירת הזמנות פעילה</div>
+        <div class="selection-toolbar-actions">
+          <button id="selectAllOrdersBtn" type="button">בחר הכול</button>
+          <button id="clearAllOrdersBtn" type="button">בטל הכול</button>
+          <button id="deleteSelectedOrdersBtn" class="danger" type="button">מחק נבחרים (0)</button>
+        </div>
+      </section>
+
       <section id="ordersList" class="orders-list" aria-live="polite"></section>
       <p id="emptyState" class="empty-state">אין הזמנות להצגה כרגע.</p>
     </main>
 
+    <div class="admin-modal-backdrop" id="deleteOrdersBackdrop" hidden></div>
+    <section
+      class="admin-modal"
+      id="deleteOrdersModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deleteOrdersTitle"
+      hidden
+    >
+      <header class="admin-modal-head">
+        <h3 id="deleteOrdersTitle">מחיקת הזמנות</h3>
+        <button id="closeDeleteOrdersModalBtn" class="icon-btn" type="button" aria-label="סגירה">
+          ×
+        </button>
+      </header>
+      <p class="admin-modal-subtitle">בחרו סוג מחיקה ואשרו באמצעות הקלדת "מחק".</p>
+
+      <fieldset class="delete-options-group">
+        <legend>אפשרויות מחיקה</legend>
+        <label class="radio-line">
+          <input type="radio" name="deleteMode" value="all" checked />
+          <span>מחק הכול</span>
+        </label>
+        <label class="radio-line">
+          <input type="radio" name="deleteMode" value="status" />
+          <span>מחק לפי סטטוס</span>
+        </label>
+        <label class="radio-line">
+          <input type="radio" name="deleteMode" value="selection" />
+          <span>מחק לפי בחירה</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="delete-options-group" id="statusFilterGroup" hidden>
+        <legend>בחרו סטטוסים למחיקה</legend>
+        <label class="check-line">
+          <input type="checkbox" class="status-delete-filter" value="delivered" />
+          <span>נמסר</span>
+        </label>
+        <label class="check-line">
+          <input type="checkbox" class="status-delete-filter" value="ready" />
+          <span>מוכן</span>
+        </label>
+        <label class="check-line">
+          <input type="checkbox" class="status-delete-filter" value="cancelled" />
+          <span>בוטל</span>
+        </label>
+      </fieldset>
+
+      <p class="selection-note" id="selectionModeNote" hidden>
+        מצב בחירה מופעל ברשימה. סמנו הזמנות באמצעות תיבות הסימון בכרטיסים.
+      </p>
+      <p class="delete-count" id="deleteMatchCount">נמצאו 0 הזמנות למחיקה.</p>
+
+      <label for="deleteConfirmInput" class="confirm-label">הקלידו "מחק" לאישור:</label>
+      <input id="deleteConfirmInput" class="confirm-input" type="text" autocomplete="off" />
+      <p class="modal-error" id="deleteModalError" aria-live="polite"></p>
+
+      <div class="admin-modal-actions">
+        <button id="cancelDeleteOrdersBtn" type="button">ביטול</button>
+        <button id="executeDeleteOrdersBtn" class="danger" type="button" disabled>מחק</button>
+      </div>
+    </section>
+
     <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./admin.js?v=20260228-4"></script>
+    <script type="module" src="./admin.js?v=20260228-5"></script>
   </body>
 </html>

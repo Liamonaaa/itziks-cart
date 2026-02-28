@@ -133,6 +133,50 @@ body.admin-authenticated .pin-gate {
   border-color: #ccb79f;
 }
 
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.selection-toolbar-info {
+  color: var(--muted);
+  font-size: 0.93rem;
+}
+
+.selection-toolbar-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.selection-toolbar-actions button,
+.admin-modal-actions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.52rem 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  background: #efe8dd;
+  color: #4a3b2d;
+}
+
+button.danger {
+  background: #8f1e1e !important;
+  color: #fff !important;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .counters {
   display: grid;
   gap: 0.8rem;
@@ -179,6 +223,27 @@ body.admin-authenticated .pin-gate {
 
 .order-head h3 {
   margin: 0;
+}
+
+.order-head-main {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.order-select-control {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.order-select-control input {
+  accent-color: var(--accent);
+}
+
+body.selection-mode .order-select-control {
+  display: inline-flex;
 }
 
 .status-pill {
@@ -304,6 +369,110 @@ body.admin-authenticated .pin-gate {
   transform: translateY(0);
 }
 
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 14, 10, 0.45);
+  z-index: 30;
+}
+
+.admin-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(500px, calc(100vw - 2rem));
+  max-height: min(85vh, 780px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1rem;
+  z-index: 31;
+  box-shadow: 0 24px 50px rgba(28, 24, 20, 0.28);
+}
+
+.admin-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.admin-modal-head h3 {
+  margin: 0;
+}
+
+.icon-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-modal-subtitle {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+}
+
+.delete-options-group {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem;
+  margin: 0 0 0.7rem;
+}
+
+.delete-options-group legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+
+.radio-line,
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.35rem 0;
+}
+
+.delete-count,
+.selection-note {
+  margin: 0.3rem 0 0.65rem;
+  color: var(--muted);
+}
+
+.confirm-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+}
+
+.confirm-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.62rem 0.75rem;
+  font: inherit;
+  margin-bottom: 0.45rem;
+}
+
+.modal-error {
+  min-height: 1.2rem;
+  margin: 0;
+  color: #b01818;
+  font-size: 0.91rem;
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.8rem;
+}
+
 @media (max-width: 760px) {
   .topbar {
     flex-direction: column;
@@ -312,6 +481,11 @@ body.admin-authenticated .pin-gate {
 
   .topbar-actions {
     width: 100%;
+  }
+
+  .selection-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .counters {
