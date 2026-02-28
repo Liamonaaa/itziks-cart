@@ -18,6 +18,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -35,6 +36,7 @@ body {
   );
   color: var(--text);
   line-height: 1.6;
+  overflow-x: hidden;
 }
 
 a {
@@ -56,18 +58,20 @@ section {
 }
 
 .skip-link {
-  position: absolute;
-  left: -9999px;
-  top: 1rem;
+  position: fixed;
+  left: 0.75rem;
+  top: 0.75rem;
   background: var(--accent);
   color: #fff;
   padding: 0.6rem 1rem;
   border-radius: 999px;
   z-index: 9999;
+  transform: translateY(-200%);
+  transition: transform 0.2s ease;
 }
 
 .skip-link:focus {
-  left: 1rem;
+  transform: translateY(0);
   outline: none;
   box-shadow: var(--focus);
 }
@@ -492,10 +496,11 @@ footer a {
 
 .mobile-cart-btn {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  right: calc(env(safe-area-inset-right, 0px) + 12px);
-  inset-inline-end: calc(env(safe-area-inset-right, 0px) + 12px);
-  inset-inline-start: auto;
+  top: 12px;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 12px;
+  right: calc(env(safe-area-inset-right) + 12px);
+  left: auto;
   width: 48px;
   height: 48px;
   border-radius: 999px;
@@ -532,8 +537,8 @@ footer a {
 
 .mobile-cart-badge {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -4px;
+  right: -4px;
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
@@ -912,7 +917,7 @@ select::-ms-expand {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
   .mobile-cart-btn {
     display: flex !important;
   }
@@ -960,7 +965,7 @@ select::-ms-expand {
   }
 }
 
-@media (min-width: 901px) {
+@media (min-width: 901px) and (hover: hover) and (pointer: fine) {
   .mobile-cart-btn {
     display: none !important;
   }

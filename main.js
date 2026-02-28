@@ -137,19 +137,20 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-8';
+const BUILD_VERSION = '20260228-9';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT}px)`,
 );
+const mobileTouchQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
 
 function toShekel(value) {
   return `\u20AA${value}`;
 }
 
 function isMobileViewport() {
-  return mobileViewportQuery.matches;
+  return mobileViewportQuery.matches || mobileTouchQuery.matches;
 }
 
 function ensureMobileCartElements() {
@@ -1917,7 +1918,7 @@ function init() {
   ensureMobileCartElements();
   if (isMobileViewport()) {
     console.log('[mobile cart] initialized', {
-      matches: mobileViewportQuery.matches,
+      matches: isMobileViewport(),
       btn: !!mobileCartButton,
     });
   }
@@ -1931,8 +1932,10 @@ function init() {
   syncViewportUi();
   if (typeof mobileViewportQuery.addEventListener === 'function') {
     mobileViewportQuery.addEventListener('change', syncViewportUi);
+    mobileTouchQuery.addEventListener('change', syncViewportUi);
   } else if (typeof mobileViewportQuery.addListener === 'function') {
     mobileViewportQuery.addListener(syncViewportUi);
+    mobileTouchQuery.addListener(syncViewportUi);
   }
   bindFormEvents();
   renderCart();
