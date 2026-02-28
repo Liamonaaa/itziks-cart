@@ -117,19 +117,6 @@ header {
   white-space: nowrap;
 }
 
-.topbar-hours.status-open {
-  background: #fff;
-  border-color: var(--accent-3);
-  color: var(--accent);
-}
-
-.topbar-hours.status-closed {
-  background: #fde8e8;
-  border-color: #d06b6b;
-  color: #9b2f2f;
-  font-weight: 600;
-}
-
 .nav-actions {
   display: flex;
   gap: 0.6rem;

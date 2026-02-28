@@ -3,13 +3,13 @@ import { db } from "./src/firebase.js";
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
 const WORKING_HOURS = {
-  0: { open: '12:00', close: '00:00', label: 'יום א׳' },
-  1: { open: '12:00', close: '00:00', label: 'יום ב׳' },
-  2: { open: '12:00', close: '00:00', label: 'יום ג׳' },
-  3: { open: '12:00', close: '00:00', label: 'יום ד׳' },
-  4: { open: '12:00', close: '00:00', label: 'יום ה׳' },
-  5: { open: '12:00', close: '00:00', label: 'יום ו׳' },
-  6: { open: '12:00', close: '00:00', label: 'שבת' },
+  0: { open: '00:00', close: '00:00', label: 'יום א׳' },
+  1: { open: '00:00', close: '00:00', label: 'יום ב׳' },
+  2: { open: '00:00', close: '00:00', label: 'יום ג׳' },
+  3: { open: '00:00', close: '00:00', label: 'יום ד׳' },
+  4: { open: '00:00', close: '00:00', label: 'יום ה׳' },
+  5: { open: '00:00', close: '00:00', label: 'יום ו׳' },
+  6: { open: '00:00', close: '00:00', label: 'שבת' },
 };
 
 const BUSINESS_NAME = 'חזי בצומת';
@@ -19,12 +19,8 @@ const STORAGE_KEY = 'itziks-cart-order-v2';
 const LAST_ORDER_ID_KEY = 'itziks-cart-last-order-id';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
-const ORDERING_HOURS_LABEL = 'פתוחים כל יום 12:00–00:00';
-const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות בין 12:00 ל-00:00';
-const HEADER_TIMEZONE = 'Asia/Jerusalem';
-const HEADER_OPEN_MINUTES = 12 * 60;
-const HEADER_CLOSE_MINUTES = 24 * 60;
-const HEADER_STATUS_REFRESH_MS = 30 * 1000;
+const ORDERING_HOURS_LABEL = 'פתוח 24/7';
+const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות 24/7';
 
 const SANDWICH_ITEM_IDS = new Set([
   'pita-veal',
@@ -147,7 +143,6 @@ const lastOrderLink = document.getElementById('lastOrderLink');
 const backToTop = document.getElementById('backToTop');
 const toast = document.getElementById('toast');
 const copyPhone = document.getElementById('copyPhone');
-const hoursStatusElement = document.getElementById('hoursStatus');
 
 const state = {
   cartLines: [],
@@ -193,23 +188,13 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-let headerStatusIntervalId = null;
-const BUILD_VERSION = '20260228-15';
+const BUILD_VERSION = '20260228-16';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT}px)`,
 );
 const mobileTouchQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
-const headerTimeFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: HEADER_TIMEZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
 
 function toShekel(value) {
   return `\u20AA${value}`;
@@ -217,83 +202,6 @@ function toShekel(value) {
 
 function isMobileViewport() {
   return mobileViewportQuery.matches || mobileTouchQuery.matches;
-}
-
-function getJerusalemTimeParts(date = new Date()) {
-  const parts = headerTimeFormatter.formatToParts(date);
-  const valueByType = {};
-  parts.forEach((part) => {
-    if (part.type !== 'literal') {
-      valueByType[part.type] = Number(part.value);
-    }
-  });
-
-  return {
-    year: valueByType.year || 0,
-    month: valueByType.month || 0,
-    day: valueByType.day || 0,
-    hour: valueByType.hour || 0,
-    minute: valueByType.minute || 0,
-  };
-}
-
-function toHHMM(hour, minute = 0) {
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
-function buildHeaderHoursStatus(nowParts) {
-  const minutesNow = nowParts.hour * 60 + nowParts.minute;
-  const isOpen = minutesNow >= HEADER_OPEN_MINUTES && minutesNow < HEADER_CLOSE_MINUTES;
-
-  if (isOpen) {
-    return {
-      isOpen: true,
-      text: ORDERING_HOURS_LABEL,
-    };
-  }
-
-  const nextOpenHour = Math.floor(HEADER_OPEN_MINUTES / 60) % 24;
-  const nextOpenMinute = HEADER_OPEN_MINUTES % 60;
-  const nextOpenText = toHHMM(nextOpenHour, nextOpenMinute);
-  if (minutesNow < HEADER_OPEN_MINUTES) {
-    return {
-      isOpen: false,
-      text: `סגור עד ${nextOpenText}`,
-    };
-  }
-
-  return {
-    isOpen: false,
-    text: `סגור עד מחר ${nextOpenText}`,
-  };
-}
-
-function updateHeaderHoursStatus() {
-  if (!hoursStatusElement) return;
-  const nowParts = getJerusalemTimeParts(new Date());
-  const status = buildHeaderHoursStatus(nowParts);
-  hoursStatusElement.textContent = status.text;
-  hoursStatusElement.classList.toggle('status-open', status.isOpen);
-  hoursStatusElement.classList.toggle('status-closed', !status.isOpen);
-}
-
-function initHeaderHoursStatus() {
-  if (!hoursStatusElement) return;
-
-  updateHeaderHoursStatus();
-  if (headerStatusIntervalId) {
-    clearInterval(headerStatusIntervalId);
-  }
-  headerStatusIntervalId = window.setInterval(
-    updateHeaderHoursStatus,
-    HEADER_STATUS_REFRESH_MS,
-  );
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      updateHeaderHoursStatus();
-    }
-  });
 }
 
 function ensureMobileCartElements() {
@@ -2350,7 +2258,6 @@ function restoreInputs() {
 
 function init() {
   ensureMobileCartElements();
-  initHeaderHoursStatus();
   if (isMobileViewport()) {
     console.log('[mobile cart] initialized', {
       matches: isMobileViewport(),
