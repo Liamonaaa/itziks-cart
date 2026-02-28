@@ -75,7 +75,6 @@ const cartTotalInline = document.getElementById('cartTotalInline');
 const clearCartButton = document.getElementById('clearCartBtn');
 const sendOrderButton = document.getElementById('sendOrderBtn');
 const mobileCartToggle = document.getElementById('mobileCartToggle');
-const mobileCartTotal = document.getElementById('mobileCartTotal');
 const mobileCartCount = document.getElementById('mobileCartCount');
 const mobileCartBackdrop = document.getElementById('mobileCartBackdrop');
 
@@ -848,18 +847,15 @@ function renderCart() {
   const totalLabel = toShekel(total);
   cartTotalElement.textContent = totalLabel;
   cartTotalInline.textContent = totalLabel;
-  const mobilePrefix = cartPanel.classList.contains('open')
-    ? 'סגור עגלה'
-    : 'פתח עגלה';
-  if (mobileCartTotal && mobileCartCount && mobileCartToggle) {
-    mobileCartTotal.textContent = totalLabel;
+  if (mobileCartCount) {
     mobileCartCount.textContent = String(itemCount);
+    mobileCartCount.hidden = itemCount === 0;
+  }
+  if (mobileCartToggle) {
     mobileCartToggle.setAttribute(
       'aria-label',
       `עגלה: ${itemCount} פריטים, ${totalLabel}`,
     );
-  } else {
-    mobileCartToggle.textContent = `${mobilePrefix} (${totalLabel})`;
   }
 }
 

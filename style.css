@@ -461,32 +461,28 @@ footer a {
 
 .mobile-cta {
   position: fixed;
-  bottom: 0;
-  right: 0;
-  left: 0;
-  background: rgba(251, 246, 239, 0.98);
-  border-top: 1px solid rgba(139, 90, 43, 0.15);
-  padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(0.95rem + env(safe-area-inset-bottom));
+  padding: 0;
   display: none;
-  gap: 0.6rem;
-  z-index: 35;
+  z-index: 56;
+  pointer-events: none;
 }
 
 .mobile-cart-btn {
-  width: 100%;
-  justify-content: space-between;
+  min-width: 120px;
+  justify-content: center;
   gap: 0.6rem;
-  min-height: 46px;
+  min-height: 48px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(43, 32, 24, 0.28);
+  pointer-events: auto;
 }
 
 .mobile-cart-label {
   font-weight: 700;
-}
-
-.mobile-cart-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
 }
 
 .mobile-cart-badge {
@@ -502,6 +498,10 @@ footer a {
   font-weight: 700;
   line-height: 1;
   padding: 0 0.35rem;
+}
+
+.mobile-cart-badge[hidden] {
+  display: none;
 }
 
 .mobile-cart-backdrop {
@@ -563,7 +563,7 @@ footer a {
 
 @media (max-width: 900px) {
   .mobile-cta {
-    display: flex;
+    display: block;
   }
 
   footer {
@@ -838,7 +838,7 @@ select::-ms-expand {
   }
 
   .mobile-cta {
-    display: flex;
+    display: block;
   }
 
   body.mobile-cart-open {
