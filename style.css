@@ -39,6 +39,12 @@ body {
   overflow-x: hidden;
 }
 
+html.modalOpen,
+body.modalOpen {
+  height: 100%;
+  overflow: hidden;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -776,6 +782,10 @@ footer a {
   gap: 0.55rem;
 }
 
+.cart-scroll {
+  min-height: 0;
+}
+
 .cart-item {
   display: flex;
   justify-content: space-between;
@@ -812,6 +822,12 @@ footer a {
   padding-top: 0.8rem;
   border-top: 1px solid #eadfd3;
   font-size: 1.05rem;
+}
+
+.cart-footer {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
 }
 
 .order-form {
@@ -956,16 +972,22 @@ select::-ms-expand {
 
   .cart-panel {
     position: fixed;
-    top: calc(4.2rem + env(safe-area-inset-top));
-    left: 0.8rem;
-    right: 0.8rem;
-    bottom: max(0.8rem, env(safe-area-inset-bottom));
+    top: env(safe-area-inset-top);
+    left: 0.6rem;
+    right: 0.6rem;
+    bottom: auto;
     z-index: 2147483639;
     border-radius: 18px;
-    max-height: none;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 12px));
+    max-height: min(
+      calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px),
+      calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 12px)
+    );
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -982,6 +1004,46 @@ select::-ms-expand {
     visibility: visible;
     pointer-events: auto;
     transform: translateY(0);
+  }
+
+  .cartHeader {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-bottom: 0;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid #eadfd3;
+    background: var(--card);
+  }
+
+  .cartScroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px;
+    display: grid;
+    align-content: start;
+    gap: 0.7rem;
+  }
+
+  .cartScroll .order-form {
+    margin-top: 0.1rem;
+  }
+
+  .cartFooter {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 0;
+    padding: 0.7rem 1rem calc(env(safe-area-inset-bottom) + 0.6rem);
+    border-top: 1px solid #eadfd3;
+    background: var(--card);
+  }
+
+  .cartFooter .cart-summary {
+    margin-top: 0;
   }
 
   .cart-close-btn {

@@ -21,7 +21,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./style.css?v=20260228-11" />
+    <link rel="stylesheet" href="./style.css?v=20260228-14" />
   </head>
   <body>
     <a href="#main" class="skip-link">דלגו לתוכן</a>
@@ -288,8 +288,8 @@
             </div>
           </div>
 
-          <aside class="cart-panel" id="cartPanel" aria-labelledby="cart-title">
-            <div class="cart-header">
+          <aside class="cart-panel" id="cartPanel" aria-labelledby="cart-title" tabindex="-1">
+            <div class="cart-header cartHeader">
               <h3 id="cart-title">עגלה</h3>
               <div class="cart-header-actions">
                 <span class="price" id="cartTotalInline">₪0</span>
@@ -304,45 +304,49 @@
               </div>
             </div>
 
-            <p class="cart-empty" id="cartEmpty">העגלה ריקה כרגע.</p>
-            <div class="cart-items" id="cartItems" aria-live="polite"></div>
-            <div class="cart-summary">
-              <span>סה״כ</span>
-              <strong id="cartTotal">₪0</strong>
+            <div class="cart-scroll cartScroll" id="cartScroll">
+              <p class="cart-empty" id="cartEmpty">העגלה ריקה כרגע.</p>
+              <div class="cart-items" id="cartItems" aria-live="polite"></div>
+
+              <div class="order-form" id="orderForm">
+                <label for="pickupTime">שעת איסוף</label>
+                <select id="pickupTime" required>
+                  <option value="">בחרו שעה</option>
+                </select>
+                <p class="field-hint" id="pickupHint"></p>
+
+                <label for="customerName">שם</label>
+                <input
+                  id="customerName"
+                  type="text"
+                  autocomplete="name"
+                  placeholder="השם שלך"
+                  required
+                />
+
+                <label for="customerPhone">טלפון</label>
+                <input
+                  id="customerPhone"
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  placeholder="050-0000000"
+                  required
+                />
+
+                <label for="customerNotes">הערות (אופציונלי)</label>
+                <textarea
+                  id="customerNotes"
+                  placeholder="לדוגמה: בלי בצל / בלי חריף"
+                ></textarea>
+              </div>
             </div>
 
-            <div class="order-form" id="orderForm">
-              <label for="pickupTime">שעת איסוף</label>
-              <select id="pickupTime" required>
-                <option value="">בחרו שעה</option>
-              </select>
-              <p class="field-hint" id="pickupHint"></p>
-
-              <label for="customerName">שם</label>
-              <input
-                id="customerName"
-                type="text"
-                autocomplete="name"
-                placeholder="השם שלך"
-                required
-              />
-
-              <label for="customerPhone">טלפון</label>
-              <input
-                id="customerPhone"
-                type="tel"
-                inputmode="tel"
-                autocomplete="tel"
-                placeholder="050-0000000"
-                required
-              />
-
-              <label for="customerNotes">הערות (אופציונלי)</label>
-              <textarea
-                id="customerNotes"
-                placeholder="לדוגמה: בלי בצל / בלי חריף"
-              ></textarea>
-
+            <div class="cart-footer cartFooter">
+              <div class="cart-summary">
+                <span>סה״כ</span>
+                <strong id="cartTotal">₪0</strong>
+              </div>
               <div class="cart-actions">
                 <button class="btn" id="sendOrderBtn" type="button">
                   שלח הזמנה
@@ -529,6 +533,6 @@
       המספר הועתק
     </div>
 
-    <script type="module" src="./main.js?v=20260228-13"></script>
+    <script type="module" src="./main.js?v=20260228-14"></script>
   </body>
 </html>

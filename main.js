@@ -188,7 +188,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-13';
+const BUILD_VERSION = '20260228-14';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -249,10 +249,15 @@ function lockBodyScrollForMobileCart() {
   mobileCartLockedScrollY = window.scrollY || window.pageYOffset || 0;
   document.body.style.top = `-${mobileCartLockedScrollY}px`;
   document.body.classList.add('mobile-cart-open');
+  document.documentElement.classList.add('modalOpen');
+  document.body.classList.add('modalOpen');
 }
 
 function unlockBodyScrollForMobileCart() {
-  if (!document.body.classList.contains('mobile-cart-open')) return;
+  const wasLocked = document.body.classList.contains('mobile-cart-open');
+  document.documentElement.classList.remove('modalOpen');
+  document.body.classList.remove('modalOpen');
+  if (!wasLocked) return;
   document.body.classList.remove('mobile-cart-open');
   document.body.style.top = '';
   window.scrollTo(0, mobileCartLockedScrollY);
@@ -290,6 +295,11 @@ function openMobileCart() {
     mobileCartBackdrop.classList.add('show');
   }
   lockBodyScrollForMobileCart();
+  const scrollContainer = cartPanel.querySelector('.cartScroll');
+  if (scrollContainer instanceof HTMLElement) {
+    scrollContainer.scrollTop = 0;
+  }
+  cartPanel.focus({ preventScroll: true });
   mobileCartCloseButton?.focus({ preventScroll: true });
 }
 
