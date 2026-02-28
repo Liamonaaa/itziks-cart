@@ -77,6 +77,7 @@ const sendOrderButton = document.getElementById('sendOrderBtn');
 const mobileCartToggle = document.getElementById('mobileCartToggle');
 const mobileCartCount = document.getElementById('mobileCartCount');
 const mobileCartBackdrop = document.getElementById('mobileCartBackdrop');
+const mobileCartCloseButton = document.getElementById('mobileCartClose');
 
 const pickupSelect = document.getElementById('pickupTime');
 const pickupHint = document.getElementById('pickupHint');
@@ -118,6 +119,8 @@ const ui = {
 
 let customSelectGlobalBound = false;
 let toastTimeoutId = null;
+let mobileCartLockedScrollY = 0;
+let lastFocusedBeforeMobileCart = null;
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -132,51 +135,79 @@ function isMobileViewport() {
   return mobileViewportQuery.matches;
 }
 
-function closeMobileCart() {
-  if (!isMobileViewport()) return;
+function lockBodyScrollForMobileCart() {
+  if (document.body.classList.contains('mobile-cart-open')) return;
+  mobileCartLockedScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = `-${mobileCartLockedScrollY}px`;
+  document.body.classList.add('mobile-cart-open');
+}
+
+function unlockBodyScrollForMobileCart() {
+  if (!document.body.classList.contains('mobile-cart-open')) return;
+  document.body.classList.remove('mobile-cart-open');
+  document.body.style.top = '';
+  window.scrollTo(0, mobileCartLockedScrollY);
+}
+
+function closeMobileCart(options = {}) {
+  const { restoreFocus = true } = options;
   cartPanel.classList.remove('open');
-  cartPanel.setAttribute('aria-hidden', 'true');
+  if (isMobileViewport()) {
+    cartPanel.setAttribute('aria-hidden', 'true');
+  }
   mobileCartToggle?.setAttribute('aria-expanded', 'false');
   if (mobileCartBackdrop) {
     mobileCartBackdrop.classList.remove('show');
     mobileCartBackdrop.hidden = true;
   }
-  document.body.classList.remove('mobile-cart-open');
+  unlockBodyScrollForMobileCart();
+  if (restoreFocus && isMobileViewport() && lastFocusedBeforeMobileCart) {
+    lastFocusedBeforeMobileCart.focus({ preventScroll: true });
+  }
+  lastFocusedBeforeMobileCart = null;
 }
 
 function openMobileCart() {
   if (!isMobileViewport()) return;
+  lastFocusedBeforeMobileCart =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
   cartPanel.classList.add('open');
   cartPanel.setAttribute('aria-hidden', 'false');
+  cartPanel.setAttribute('role', 'dialog');
+  cartPanel.setAttribute('aria-modal', 'true');
   mobileCartToggle?.setAttribute('aria-expanded', 'true');
   if (mobileCartBackdrop) {
     mobileCartBackdrop.hidden = false;
     mobileCartBackdrop.classList.add('show');
   }
-  document.body.classList.add('mobile-cart-open');
+  lockBodyScrollForMobileCart();
+  mobileCartCloseButton?.focus({ preventScroll: true });
 }
 
 function syncMobileCartLayout() {
   if (isMobileViewport()) {
+    const isOpen = cartPanel.classList.contains('open');
     cartPanel.setAttribute(
       'aria-hidden',
-      cartPanel.classList.contains('open') ? 'false' : 'true',
+      isOpen ? 'false' : 'true',
     );
+    cartPanel.setAttribute('role', 'dialog');
+    cartPanel.setAttribute('aria-modal', 'true');
     mobileCartToggle?.setAttribute(
       'aria-expanded',
-      cartPanel.classList.contains('open') ? 'true' : 'false',
+      isOpen ? 'true' : 'false',
     );
+    if (!isOpen) {
+      unlockBodyScrollForMobileCart();
+    }
     return;
   }
 
-  cartPanel.classList.remove('open');
+  closeMobileCart({ restoreFocus: false });
   cartPanel.removeAttribute('aria-hidden');
+  cartPanel.removeAttribute('role');
+  cartPanel.removeAttribute('aria-modal');
   mobileCartToggle?.setAttribute('aria-expanded', 'false');
-  if (mobileCartBackdrop) {
-    mobileCartBackdrop.classList.remove('show');
-    mobileCartBackdrop.hidden = true;
-  }
-  document.body.classList.remove('mobile-cart-open');
 }
 
 function showToast(message, timeoutMs = 2000) {
@@ -1537,13 +1568,14 @@ function bindFormEvents() {
 
   sendOrderButton.addEventListener('click', openCheckoutConfirmation);
 
-  mobileCartToggle.addEventListener('click', () => {
+  mobileCartToggle?.addEventListener('click', () => {
     if (cartPanel.classList.contains('open')) {
       closeMobileCart();
     } else {
       openMobileCart();
     }
   });
+  mobileCartCloseButton?.addEventListener('click', () => closeMobileCart());
   mobileCartBackdrop?.addEventListener('click', closeMobileCart);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && cartPanel.classList.contains('open')) {
