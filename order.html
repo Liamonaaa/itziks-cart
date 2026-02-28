@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./order.css?v=20260228-3" />
+    <link rel="stylesheet" href="./order.css?v=20260228-4" />
   </head>
   <body>
     <main class="order-page">
@@ -92,6 +92,15 @@
             <strong id="orderTotal">₪0</strong>
           </div>
         </section>
+
+        <section class="card replies-card" id="businessRepliesSection" tabindex="-1">
+          <div class="replies-head">
+            <h2>הודעות מהעסק</h2>
+            <span class="replies-live-note">מתעדכן בזמן אמת</span>
+          </div>
+          <p class="replies-empty" id="businessRepliesEmpty">אין עדיין הודעות מהעסק.</p>
+          <ul class="business-replies-list" id="businessRepliesList"></ul>
+        </section>
       </section>
     </main>
 
@@ -115,6 +124,11 @@
 
     <div class="order-toast" id="orderToast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./order.js?v=20260228-4"></script>
+    <section class="new-reply-toast" id="newReplyToast" hidden aria-live="polite">
+      <p>הודעה חדשה מהעסק</p>
+      <button id="showReplySectionBtn" type="button">הצג</button>
+    </section>
+
+    <script type="module" src="./order.js?v=20260228-5"></script>
   </body>
 </html>

@@ -248,6 +248,66 @@ h1 {
   font-size: 1.05rem;
 }
 
+.replies-card {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.replies-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.replies-head h2 {
+  margin: 0;
+  font-size: 1.12rem;
+}
+
+.replies-live-note {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.replies-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.business-replies-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.business-reply-item {
+  border: 1px solid #e1d5c9;
+  background: #fffcf8;
+  border-radius: 12px;
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.business-reply-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.business-reply-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
 .delivered-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -350,6 +410,51 @@ h1 {
   transform: translate(-50%, 0);
 }
 
+.new-reply-toast {
+  position: fixed;
+  top: calc(0.9rem + env(safe-area-inset-top));
+  left: 50%;
+  transform: translate(-50%, -10px);
+  z-index: 97;
+  background: #2b2018;
+  color: #fff;
+  border-radius: 14px;
+  padding: 0.55rem 0.7rem;
+  min-width: min(320px, calc(100vw - 1.2rem));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  box-shadow: 0 18px 40px rgba(24, 18, 13, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.new-reply-toast.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.new-reply-toast p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.new-reply-toast button {
+  border: 1px solid #ccb299;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.3rem 0.72rem;
+  cursor: pointer;
+}
+
 @media (max-width: 760px) {
   .delivered-modal-actions {
     flex-direction: column;
@@ -366,5 +471,14 @@ h1 {
 
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .replies-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .new-reply-toast {
+    min-width: calc(100vw - 1.2rem);
   }
 }

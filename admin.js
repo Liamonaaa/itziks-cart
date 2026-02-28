@@ -7,6 +7,7 @@ const AUTH_STORAGE_KEY = 'itziks-admin-pin-ok';
 const DELETE_CONFIRM_PHRASE = 'מחק';
 const DELETE_BATCH_SIZE = 200;
 const HISTORY_PAGE_SIZE = 50;
+const ADMIN_REPLY_MAX_CHARS = 500;
 
 const STATUS_LABELS = {
   new: 'חדש',
@@ -86,6 +87,7 @@ let historySearchTerm = '';
 let historyDateRange = 'all';
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 const selectedOrderIds = new Set();
+let isAdminSessionUnlocked = false;
 
 function showToast(message, timeoutMs = 2600) {
   if (!adminToast) return;
@@ -252,6 +254,68 @@ function formatModifiers(modifiers) {
   return parts.join(' | ');
 }
 
+function replyTimestampMillis(reply) {
+  if (!reply || typeof reply !== 'object') return 0;
+  if (Number.isFinite(reply.createdAtMs)) return reply.createdAtMs;
+  return toMillis(reply.createdAt);
+}
+
+function formatReplyTimestamp(value) {
+  const millis = toMillis(value);
+  if (!millis) return '--';
+  return new Date(millis).toLocaleString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function normalizeAdminReplies(replies) {
+  if (!Array.isArray(replies) || replies.length === 0) return [];
+
+  return replies
+    .map((reply) => {
+      if (!reply || typeof reply !== 'object') return null;
+      const text = typeof reply.text === 'string' ? reply.text.trim() : '';
+      if (!text) return null;
+      return {
+        text,
+        author: typeof reply.author === 'string' ? reply.author : 'staff',
+        createdAt: reply.createdAt || null,
+        createdAtMs: Number.isFinite(reply.createdAtMs) ? reply.createdAtMs : replyTimestampMillis(reply),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.createdAtMs !== right.createdAtMs) {
+        return left.createdAtMs - right.createdAtMs;
+      }
+      return left.text.localeCompare(right.text, 'he');
+    });
+}
+
+function renderAdminRepliesListHtml(replies) {
+  const normalizedReplies = normalizeAdminReplies(replies);
+  if (normalizedReplies.length === 0) {
+    return '<li class="order-reply-empty">אין עדיין הודעות מהעסק.</li>';
+  }
+
+  return normalizedReplies
+    .map(
+      (reply) => `
+        <li class="order-reply-item">
+          <p class="order-reply-text">${escapeHtml(reply.text)}</p>
+          <div class="order-reply-meta">
+            <span>${escapeHtml(reply.author === 'staff' ? 'צוות' : reply.author)}</span>
+            <span>${escapeHtml(formatReplyTimestamp(reply.createdAt || reply.createdAtMs))}</span>
+          </div>
+        </li>
+      `,
+    )
+    .join('');
+}
+
 async function setOrderStatus(orderId, nextStatus) {
   try {
     const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
@@ -266,6 +330,176 @@ async function setOrderStatus(orderId, nextStatus) {
     console.error('Failed to update order status', error);
     showToast('שגיאה בעדכון סטטוס ההזמנה');
   }
+}
+
+async function appendAdminReply(orderId, text) {
+  if (!isAdminSessionUnlocked || dashboard?.hidden) {
+    throw new Error('UNAUTHORIZED_ADMIN_SESSION');
+  }
+
+  const normalizedText = String(text || '').trim();
+  if (!normalizedText) {
+    throw new Error('REPLY_EMPTY');
+  }
+
+  if (normalizedText.length > ADMIN_REPLY_MAX_CHARS) {
+    throw new Error('REPLY_TOO_LONG');
+  }
+
+  const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+  const orderRef = fs.doc(firestoreDb, 'orders', orderId);
+
+  await fs.runTransaction(firestoreDb, async (transaction) => {
+    const snapshot = await transaction.get(orderRef);
+    if (!snapshot.exists()) {
+      throw new Error('ORDER_NOT_FOUND');
+    }
+
+    const orderData = snapshot.data() || {};
+    const currentReplies = normalizeAdminReplies(orderData.adminReplies);
+    const reply = {
+      text: normalizedText,
+      author: 'staff',
+      // Demo note: Firestore serverTimestamp is not supported inside array elements.
+      // We store Timestamp.now() for each reply and keep lastAdminReplyAt as serverTimestamp.
+      createdAt: fs.Timestamp.now(),
+      createdAtMs: Date.now(),
+    };
+
+    transaction.update(orderRef, {
+      adminReplies: [...currentReplies, reply],
+      lastAdminReplyAt: fs.serverTimestamp(),
+    });
+  });
+}
+
+function bindReplyComposer(card, order) {
+  const toggleBtn = card.querySelector('.reply-toggle-btn');
+  const composer = card.querySelector('.order-reply-compose');
+  const textarea = card.querySelector('.order-reply-input');
+  const charCount = card.querySelector('.order-reply-char-count');
+  const errorNode = card.querySelector('.order-reply-error');
+  const successNode = card.querySelector('.order-reply-success');
+  const sendBtn = card.querySelector('.order-reply-send');
+  const cancelBtn = card.querySelector('.order-reply-cancel');
+  const repliesList = card.querySelector('.order-replies-list');
+  const repliesCount = card.querySelector('.order-replies-count');
+
+  if (!toggleBtn || !composer || !textarea || !charCount || !errorNode || !sendBtn || !cancelBtn) return;
+
+  if (repliesList) {
+    repliesList.innerHTML = renderAdminRepliesListHtml(order.adminReplies);
+  }
+  if (repliesCount) {
+    const count = normalizeAdminReplies(order.adminReplies).length;
+    repliesCount.textContent = count > 0 ? `(${count})` : '';
+  }
+
+  let isSending = false;
+
+  const updateCharCount = () => {
+    const remaining = ADMIN_REPLY_MAX_CHARS - textarea.value.length;
+    charCount.textContent = `נותרו ${remaining} תווים`;
+    charCount.classList.toggle('is-limit', remaining <= 30);
+  };
+
+  const resetComposer = () => {
+    textarea.value = '';
+    errorNode.textContent = '';
+    if (successNode) {
+      successNode.hidden = true;
+    }
+    updateCharCount();
+  };
+
+  const setComposeOpen = (isOpen) => {
+    composer.hidden = !isOpen;
+    toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    toggleBtn.classList.toggle('is-open', isOpen);
+    if (isOpen) {
+      textarea.focus();
+    } else {
+      resetComposer();
+    }
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    if (dashboard?.hidden || !isAdminSessionUnlocked) return;
+    setComposeOpen(composer.hidden);
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    setComposeOpen(false);
+  });
+
+  textarea.addEventListener('input', () => {
+    if (textarea.value.length > ADMIN_REPLY_MAX_CHARS) {
+      textarea.value = textarea.value.slice(0, ADMIN_REPLY_MAX_CHARS);
+    }
+    errorNode.textContent = '';
+    if (successNode) {
+      successNode.hidden = true;
+    }
+    updateCharCount();
+  });
+
+  sendBtn.addEventListener('click', async () => {
+    if (isSending) return;
+    if (dashboard?.hidden || !isAdminSessionUnlocked) {
+      errorNode.textContent = 'יש לבצע כניסת מנהל לפני שליחה.';
+      return;
+    }
+
+    const text = textarea.value.trim();
+    if (!text) {
+      errorNode.textContent = 'יש להזין הודעה לפני שליחה.';
+      return;
+    }
+
+    if (text.length > ADMIN_REPLY_MAX_CHARS) {
+      errorNode.textContent = `מקסימום ${ADMIN_REPLY_MAX_CHARS} תווים.`;
+      return;
+    }
+
+    isSending = true;
+    sendBtn.disabled = true;
+    cancelBtn.disabled = true;
+    errorNode.textContent = '';
+
+    try {
+      await appendAdminReply(order.id, text);
+      textarea.value = '';
+      updateCharCount();
+      if (successNode) {
+        successNode.hidden = false;
+      }
+      showToast('נשלח ללקוח');
+      window.setTimeout(() => {
+        if (successNode) {
+          successNode.hidden = true;
+        }
+      }, 1700);
+    } catch (error) {
+      console.error('Failed to send admin reply', error);
+      if (error?.message === 'ORDER_NOT_FOUND') {
+        errorNode.textContent = 'ההזמנה לא נמצאה.';
+      } else if (error?.message === 'REPLY_EMPTY') {
+        errorNode.textContent = 'יש להזין הודעה לפני שליחה.';
+      } else if (error?.message === 'REPLY_TOO_LONG') {
+        errorNode.textContent = `מקסימום ${ADMIN_REPLY_MAX_CHARS} תווים.`;
+      } else if (error?.message === 'UNAUTHORIZED_ADMIN_SESSION') {
+        errorNode.textContent = 'הגישה נחסמה. בצעו כניסה מחדש.';
+      } else {
+        errorNode.textContent = 'שגיאה בשליחת ההודעה. נסו שוב.';
+      }
+    } finally {
+      isSending = false;
+      sendBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  });
+
+  updateCharCount();
 }
 
 function buildStatusButtons(order) {
@@ -464,6 +698,10 @@ function renderHistoryOrders() {
         <div><strong>הערות:</strong> ${escapeHtml(order.notes || 'ללא')}</div>
       </div>
       <ul class="order-items">${renderItems(order.items)}</ul>
+      <section class="order-replies">
+        <h4>הודעות ללקוח</h4>
+        <ul class="order-replies-list">${renderAdminRepliesListHtml(order.adminReplies)}</ul>
+      </section>
       <div class="order-foot">
         <strong>סה"כ: ${formatMoney(order.total)}</strong>
       </div>
@@ -670,6 +908,38 @@ function renderOrders() {
         <div><strong>הערות:</strong> ${escapeHtml(order.notes || 'ללא')}</div>
       </div>
       <ul class="order-items">${renderItems(order.items)}</ul>
+      <section class="order-replies">
+        <div class="order-reply-head">
+          <h4>הודעות להזמנה <span class="order-replies-count"></span></h4>
+          <button
+            type="button"
+            class="reply-toggle-btn"
+            aria-expanded="false"
+            aria-controls="replyCompose-${escapeHtml(order.id)}"
+          >
+            הגב להזמנה
+          </button>
+        </div>
+        <div class="order-reply-compose" id="replyCompose-${escapeHtml(order.id)}" hidden>
+          <label for="replyInput-${escapeHtml(order.id)}">הודעה ללקוח</label>
+          <textarea
+            id="replyInput-${escapeHtml(order.id)}"
+            class="order-reply-input"
+            maxlength="${ADMIN_REPLY_MAX_CHARS}"
+            placeholder="כתבו עדכון קצר ללקוח..."
+          ></textarea>
+          <div class="order-reply-compose-foot">
+            <span class="order-reply-char-count">נותרו ${ADMIN_REPLY_MAX_CHARS} תווים</span>
+            <div class="order-reply-actions">
+              <button type="button" class="order-reply-cancel">ביטול</button>
+              <button type="button" class="order-reply-send">שלח</button>
+            </div>
+          </div>
+          <p class="order-reply-error" aria-live="polite"></p>
+          <p class="order-reply-success" hidden>נשלח ללקוח</p>
+        </div>
+        <ul class="order-replies-list">${renderAdminRepliesListHtml(order.adminReplies)}</ul>
+      </section>
       <div class="order-foot">
         <strong>סה"כ: ${formatMoney(order.total)}</strong>
       </div>
@@ -692,6 +962,7 @@ function renderOrders() {
     }
 
     card.querySelector('.order-foot').append(buildStatusButtons(order));
+    bindReplyComposer(card, order);
     ordersList.append(card);
   });
 }
@@ -1057,6 +1328,7 @@ function stopRealtimeOrders() {
 }
 
 function lockDashboard({ clearStoredAuth = true, focusPin = true } = {}) {
+  isAdminSessionUnlocked = false;
   if (clearStoredAuth) {
     setStoredAuth(false);
   }
@@ -1085,6 +1357,7 @@ function lockDashboard({ clearStoredAuth = true, focusPin = true } = {}) {
 }
 
 function unlockDashboard({ persist = true } = {}) {
+  isAdminSessionUnlocked = true;
   if (persist) {
     setStoredAuth(true);
   }

@@ -36,6 +36,11 @@ const ui = {
   customerNotes: document.getElementById('customerNotes'),
   orderItems: document.getElementById('orderItems'),
   orderTotal: document.getElementById('orderTotal'),
+  businessRepliesSection: document.getElementById('businessRepliesSection'),
+  businessRepliesEmpty: document.getElementById('businessRepliesEmpty'),
+  businessRepliesList: document.getElementById('businessRepliesList'),
+  newReplyToast: document.getElementById('newReplyToast'),
+  showReplySectionBtn: document.getElementById('showReplySectionBtn'),
   deliveredWarning: document.getElementById('deliveredWarning'),
   deliveredWarningWhatsapp: document.getElementById('deliveredWarningWhatsapp'),
   deliveredModalBackdrop: document.getElementById('deliveredModalBackdrop'),
@@ -54,6 +59,7 @@ let lastFocusedBeforeModal = null;
 let modalLockedScrollY = 0;
 let toastTimer = null;
 let decisionInFlight = false;
+let knownReplyCount = null;
 
 const shekelFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -124,6 +130,55 @@ function formatModifiers(modifiers) {
   }
 
   return lines;
+}
+
+function toMillis(value) {
+  if (value?.toMillis) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value);
+  const millis = parsed.getTime();
+  return Number.isNaN(millis) ? 0 : millis;
+}
+
+function replyTimestampMillis(reply) {
+  if (!reply || typeof reply !== 'object') return 0;
+  if (Number.isFinite(reply.createdAtMs)) return reply.createdAtMs;
+  return toMillis(reply.createdAt);
+}
+
+function formatReplyTimestamp(value) {
+  const millis = toMillis(value);
+  if (!millis) return '--';
+  return new Date(millis).toLocaleString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function normalizeAdminReplies(replies) {
+  if (!Array.isArray(replies) || replies.length === 0) return [];
+
+  return replies
+    .map((reply) => {
+      if (!reply || typeof reply !== 'object') return null;
+      const text = typeof reply.text === 'string' ? reply.text.trim() : '';
+      if (!text) return null;
+      return {
+        text,
+        author: typeof reply.author === 'string' ? reply.author : 'staff',
+        createdAt: reply.createdAt || null,
+        createdAtMs: replyTimestampMillis(reply),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.createdAtMs !== right.createdAtMs) {
+        return left.createdAtMs - right.createdAtMs;
+      }
+      return left.text.localeCompare(right.text, 'he');
+    });
 }
 
 function shortOrderNumber(orderId) {
@@ -198,6 +253,30 @@ function showOrderToast(message, timeoutMs = 2400) {
     ui.orderToast.classList.remove('show');
     toastTimer = null;
   }, timeoutMs);
+}
+
+function hideNewReplyToast() {
+  if (!ui.newReplyToast) return;
+  ui.newReplyToast.classList.remove('show');
+  window.setTimeout(() => {
+    if (!ui.newReplyToast.classList.contains('show')) {
+      ui.newReplyToast.hidden = true;
+    }
+  }, 220);
+}
+
+function showNewReplyToast() {
+  if (!ui.newReplyToast) return;
+  ui.newReplyToast.hidden = false;
+  requestAnimationFrame(() => {
+    ui.newReplyToast.classList.add('show');
+  });
+}
+
+function focusRepliesSection() {
+  if (!ui.businessRepliesSection) return;
+  ui.businessRepliesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  ui.businessRepliesSection.focus({ preventScroll: true });
 }
 
 function setDeliveryDecisionButtonsDisabled(disabled) {
@@ -397,6 +476,41 @@ function renderItems(items) {
   });
 }
 
+function renderBusinessReplies(replies, { shouldNotify = false } = {}) {
+  if (!ui.businessRepliesList || !ui.businessRepliesEmpty) return;
+
+  const normalizedReplies = normalizeAdminReplies(replies);
+  ui.businessRepliesList.innerHTML = '';
+
+  if (normalizedReplies.length === 0) {
+    ui.businessRepliesEmpty.hidden = false;
+  } else {
+    ui.businessRepliesEmpty.hidden = true;
+    normalizedReplies.forEach((reply) => {
+      const replyElement = document.createElement('li');
+      replyElement.className = 'business-reply-item';
+      replyElement.innerHTML = `
+        <p class="business-reply-text">${escapeHtml(reply.text)}</p>
+        <div class="business-reply-meta">
+          <span>${escapeHtml(reply.author === 'staff' ? 'צוות' : reply.author)}</span>
+          <span>${escapeHtml(formatReplyTimestamp(reply.createdAt || reply.createdAtMs))}</span>
+        </div>
+      `;
+      ui.businessRepliesList.append(replyElement);
+    });
+  }
+
+  if (knownReplyCount === null) {
+    knownReplyCount = normalizedReplies.length;
+    return;
+  }
+
+  if (shouldNotify && normalizedReplies.length > knownReplyCount) {
+    showNewReplyToast();
+  }
+  knownReplyCount = normalizedReplies.length;
+}
+
 function showNotFound(message) {
   ui.loadingCard.hidden = true;
   ui.orderContent.hidden = true;
@@ -405,6 +519,8 @@ function showNotFound(message) {
   hideDeniedWarning();
   ui.notFoundMessage.textContent = message || 'לא הצלחנו למצוא את ההזמנה המבוקשת.';
   currentOrderData = null;
+  knownReplyCount = null;
+  hideNewReplyToast();
 }
 
 function showOrderContent() {
@@ -413,7 +529,7 @@ function showOrderContent() {
   ui.orderContent.hidden = false;
 }
 
-function renderOrder(orderId, orderData) {
+function renderOrder(orderId, orderData, { notifyOnNewReply = false } = {}) {
   const status = typeof orderData.status === 'string' ? orderData.status : 'new';
   const statusMeta = STATUS_META[status] || STATUS_META.new;
 
@@ -431,6 +547,7 @@ function renderOrder(orderId, orderData) {
 
   renderItems(orderData.items);
   ui.orderTotal.textContent = formatMoney(orderData.total);
+  renderBusinessReplies(orderData.adminReplies, { shouldNotify: notifyOnNewReply });
 }
 
 async function submitDeliveryDecision(decision) {
@@ -494,6 +611,13 @@ function bindDeliveryDecisionEvents() {
   }
 
   document.addEventListener('keydown', handleModalKeydown);
+
+  if (ui.showReplySectionBtn) {
+    ui.showReplySectionBtn.addEventListener('click', () => {
+      hideNewReplyToast();
+      focusRepliesSection();
+    });
+  }
 }
 
 function initOrderPage() {
@@ -505,6 +629,7 @@ function initOrderPage() {
 
   currentOrderId = orderId;
   currentOrderData = null;
+  knownReplyCount = null;
   bindDeliveryDecisionEvents();
 
   if (!db) {
@@ -521,9 +646,10 @@ function initOrderPage() {
         showNotFound('הזמנה לא נמצאה');
         return;
       }
+      const shouldNotify = currentOrderData !== null;
       currentOrderData = snapshot.data() || null;
       showOrderContent();
-      renderOrder(orderId, currentOrderData);
+      renderOrder(orderId, currentOrderData, { notifyOnNewReply: shouldNotify });
     },
     (error) => {
       console.error('Failed to load order status', error);

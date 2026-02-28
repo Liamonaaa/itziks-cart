@@ -1785,6 +1785,11 @@ function buildFirestoreOrderPayload(entries, total) {
   return {
     createdAt: serverTimestamp(),
     status: 'new',
+    deliveryConfirmed: null,
+    deliveryConfirmedAt: null,
+    deliveryConfirmNote: '',
+    adminReplies: [],
+    lastAdminReplyAt: null,
     customer: {
       name: state.name.trim(),
       phone: state.phone.trim(),
