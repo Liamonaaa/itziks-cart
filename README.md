@@ -22,6 +22,7 @@ Add these in:
 GitHub -> Settings -> Secrets and variables -> Actions
 
 - `FIREBASE_SERVICE_ACCOUNT_JSON_B64`
+- OR `GOOGLE_APPLICATION_CREDENTIALS_JSON` (raw JSON)
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`

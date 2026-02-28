@@ -49,16 +49,20 @@ jobs:
         shell: bash
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" ]; then
-            echo "Missing required secret: FIREBASE_SERVICE_ACCOUNT_JSON_B64"
-            echo "Add base64-encoded Firebase service account JSON to GitHub Secrets."
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" | base64 --decode > "$RUNNER_TEMP/gcp.json"
+          elif [ -n "$GOOGLE_APPLICATION_CREDENTIALS_JSON" ]; then
+            printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/gcp.json"
+          else
+            echo "Missing required Firebase auth secret."
+            echo "Set one of: FIREBASE_SERVICE_ACCOUNT_JSON_B64 or GOOGLE_APPLICATION_CREDENTIALS_JSON"
             exit 1
           fi
 
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" | base64 --decode > "$RUNNER_TEMP/gcp.json"
           if [ ! -s "$RUNNER_TEMP/gcp.json" ]; then
-            echo "Service account JSON decode failed (empty file)."
+            echo "Service account credentials file is empty or invalid."
             exit 1
           fi
 
@@ -72,7 +76,7 @@ jobs:
           echo "Validating Firebase auth by listing projects..."
           projects_output="$(firebase projects:list --non-interactive 2>&1)" || {
             echo "$projects_output"
-            echo "Firebase auth failed. Check FIREBASE_SERVICE_ACCOUNT_JSON_B64 secret."
+            echo "Firebase auth failed. Check FIREBASE_SERVICE_ACCOUNT_JSON_B64 / GOOGLE_APPLICATION_CREDENTIALS_JSON."
             exit 1
           }
           echo "$projects_output"
