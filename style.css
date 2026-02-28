@@ -493,7 +493,9 @@ footer a {
 .mobile-cart-trigger {
   position: fixed;
   top: calc(0.75rem + env(safe-area-inset-top));
-  right: 0.9rem;
+  right: calc(0.9rem + env(safe-area-inset-right));
+  inset-inline-end: calc(0.9rem + env(safe-area-inset-right));
+  inset-inline-start: auto;
   width: 52px;
   height: 52px;
   border-radius: 999px;
@@ -506,7 +508,9 @@ footer a {
   justify-content: center;
   padding: 0;
   cursor: pointer;
-  z-index: 67;
+  z-index: 2147483640;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .mobile-cart-trigger:focus-visible {
@@ -551,7 +555,7 @@ footer a {
   position: fixed;
   inset: 0;
   background: rgba(43, 32, 24, 0.42);
-  z-index: 64;
+  z-index: 2147483638;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -917,10 +921,12 @@ select::-ms-expand {
     left: 0.8rem;
     right: 0.8rem;
     bottom: max(0.8rem, env(safe-area-inset-bottom));
-    z-index: 65;
+    z-index: 2147483639;
     border-radius: 18px;
     max-height: none;
     overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

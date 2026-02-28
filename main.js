@@ -137,7 +137,7 @@ let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
 let buildVersionMarker = null;
-const BUILD_VERSION = '20260228-5';
+const BUILD_VERSION = '20260228-7';
 const defaultToastMessage = toast?.textContent || '';
 const MOBILE_BREAKPOINT = 900;
 const mobileViewportQuery = window.matchMedia(
@@ -202,6 +202,10 @@ function openMobileCart() {
 }
 
 function syncMobileCartLayout() {
+  if (mobileCartToggle) {
+    mobileCartToggle.style.display = isMobileViewport() ? 'inline-flex' : 'none';
+  }
+
   if (isMobileViewport()) {
     const isOpen = cartPanel.classList.contains('open');
     cartPanel.setAttribute(
@@ -225,6 +229,10 @@ function syncMobileCartLayout() {
   cartPanel.removeAttribute('role');
   cartPanel.removeAttribute('aria-modal');
   mobileCartToggle?.setAttribute('aria-expanded', 'false');
+  if (mobileCartBackdrop) {
+    mobileCartBackdrop.classList.remove('show');
+    mobileCartBackdrop.hidden = true;
+  }
 }
 
 function ensureBuildVersionMarker() {
