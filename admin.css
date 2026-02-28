@@ -23,6 +23,10 @@ body {
   color: var(--ink);
 }
 
+body.admin-authenticated .pin-gate {
+  display: none !important;
+}
+
 .pin-gate {
   min-height: 100vh;
   display: grid;
@@ -88,8 +92,8 @@ body {
 }
 
 .dashboard {
-  width: min(1200px, 94vw);
-  margin: 1.25rem auto 2rem;
+  width: min(1100px, 94vw);
+  margin: clamp(1rem, 4vh, 2.2rem) auto 2rem;
 }
 
 .topbar {
@@ -108,6 +112,25 @@ body {
   margin: 0.25rem 0 0;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.topbar .logout-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.topbar .logout-btn:hover {
+  background: #fff;
+  color: var(--ink);
+  border-color: #ccb79f;
 }
 
 .counters {
@@ -285,6 +308,10 @@ body {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
   }
 
   .counters {

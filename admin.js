@@ -3,7 +3,7 @@ const FIRESTORE_MODULE_URL =
   'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 const ADMIN_PIN = '1234';
-const SESSION_KEY = 'itziks-admin-pin-ok';
+const AUTH_STORAGE_KEY = 'itziks-admin-pin-ok';
 
 const STATUS_LABELS = {
   new: 'חדש',
@@ -28,6 +28,7 @@ let ordersList = null;
 let emptyState = null;
 let adminToast = null;
 let enableNotificationsBtn = null;
+let logoutBtn = null;
 
 const currencyFormatter = new Intl.NumberFormat('he-IL', {
   style: 'currency',
@@ -441,14 +442,84 @@ async function startRealtimeOrders() {
   );
 }
 
-function unlockDashboard() {
-  sessionStorage.setItem(SESSION_KEY, '1');
-  pinGate.hidden = true;
+function setStoredAuth(isAuthenticated) {
+  try {
+    if (isAuthenticated) {
+      localStorage.setItem(AUTH_STORAGE_KEY, '1');
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error('Failed to persist admin auth state', error);
+  }
+}
+
+function hasStoredAuth() {
+  try {
+    return localStorage.getItem(AUTH_STORAGE_KEY) === '1';
+  } catch (error) {
+    console.error('Failed to read admin auth state', error);
+    return false;
+  }
+}
+
+function setPinGateVisible(isVisible) {
+  if (!pinGate) return;
+  pinGate.hidden = !isVisible;
+  pinGate.style.display = isVisible ? 'grid' : 'none';
+}
+
+function resetDashboardView() {
+  if (lastSync) {
+    lastSync.textContent = 'ממתין לעדכון...';
+  }
+  if (countNew) countNew.textContent = '0';
+  if (countInProgress) countInProgress.textContent = '0';
+  if (countReady) countReady.textContent = '0';
+  if (ordersList) ordersList.innerHTML = '';
+  if (emptyState) emptyState.hidden = false;
+}
+
+function stopRealtimeOrders() {
+  if (typeof unsubscribeOrders === 'function') {
+    unsubscribeOrders();
+  }
+  unsubscribeOrders = null;
+  initializedSnapshot = false;
+}
+
+function lockDashboard({ clearStoredAuth = true, focusPin = true } = {}) {
+  if (clearStoredAuth) {
+    setStoredAuth(false);
+  }
+
+  stopRealtimeOrders();
+  resetDashboardView();
+  document.body.classList.remove('admin-authenticated');
+  dashboard.hidden = true;
+  setPinGateVisible(true);
+
+  if (pinInput) pinInput.value = '';
+  if (pinError) pinError.textContent = '';
+  if (focusPin && pinInput) pinInput.focus();
+}
+
+function unlockDashboard({ persist = true } = {}) {
+  if (persist) {
+    setStoredAuth(true);
+  }
+
+  if (pinError) pinError.textContent = '';
+  setPinGateVisible(false);
   dashboard.hidden = false;
+  document.body.classList.add('admin-authenticated');
   updateNotificationsButton();
-  startRealtimeOrders().catch((error) => {
-    showFatalError(error);
-  });
+
+  if (typeof unsubscribeOrders !== 'function') {
+    startRealtimeOrders().catch((error) => {
+      showFatalError(error);
+    });
+  }
 }
 
 function submitPin() {
@@ -476,6 +547,7 @@ function initDomRefs() {
   emptyState = document.getElementById('emptyState');
   adminToast = document.getElementById('adminToast');
   enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
+  logoutBtn = document.getElementById('logoutBtn');
 }
 
 function initAdminPage() {
@@ -494,14 +566,20 @@ function initAdminPage() {
     enableNotificationsBtn.addEventListener('click', requestNotificationPermission);
   }
 
-  if (sessionStorage.getItem(SESSION_KEY) === '1') {
-    unlockDashboard();
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      lockDashboard();
+    });
+  }
+
+  if (hasStoredAuth()) {
+    unlockDashboard({ persist: false });
+  } else {
+    lockDashboard({ clearStoredAuth: false, focusPin: false });
   }
 
   window.addEventListener('beforeunload', () => {
-    if (typeof unsubscribeOrders === 'function') {
-      unsubscribeOrders();
-    }
+    stopRealtimeOrders();
   });
 }
 
