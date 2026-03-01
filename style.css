@@ -1483,6 +1483,27 @@ select::-ms-expand {
   box-shadow: var(--focus);
 }
 
+.cart-reminder-modal {
+  z-index: 77;
+}
+
+.cart-reminder-card {
+  width: min(420px, 92vw);
+  border: 1px solid #e6d3be;
+  background: #fffaf3;
+}
+
+.cart-reminder-card h3 {
+  margin-bottom: 0.4rem;
+  color: #5f4227;
+  text-align: center;
+}
+
+.cart-reminder-actions {
+  margin-top: 1rem;
+  justify-content: center;
+}
+
 .btn[disabled],
 .qty-btn[disabled] {
   opacity: 0.55;
@@ -1858,6 +1879,16 @@ body.support-chat-open {
   .drink-submit-card {
     width: min(460px, calc(100vw - 0.8rem));
     max-height: min(90vh, calc(100dvh - 1rem));
+  }
+
+  .cart-reminder-card {
+    width: min(420px, calc(100vw - 0.8rem));
+    max-height: min(90vh, calc(100dvh - 1rem));
+  }
+
+  .cart-reminder-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .checks-wrap {

@@ -61,6 +61,14 @@ const DRINK_NAME_KEYWORDS = [
   'soda',
 ];
 const IS_DEV = /(^localhost$)|(^127\.)|(^0\.0\.0\.0$)/.test(window.location.hostname);
+const CART_REMINDER_MIN_DELAY_MS = 180000;
+const CART_REMINDER_MAX_DELAY_MS = 300000;
+const CART_REMINDER_SESSION_KEYS = {
+  timerStartedAt: 'itziks-cart-reminder-timer-started-at',
+  plannedFireAt: 'itziks-cart-reminder-planned-fire-at',
+  reminderShown: 'itziks-cart-reminder-shown',
+  orderSubmitted: 'itziks-cart-reminder-order-submitted',
+};
 const ORDERING_HOURS_LABEL = 'פתוח 24/7';
 const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות 24/7';
 
@@ -256,6 +264,12 @@ const ui = {
     resolver: null,
     lastFocused: null,
   },
+  cartReminderModal: {
+    modal: null,
+    continueButton: null,
+    goToCartButton: null,
+    lastFocused: null,
+  },
 };
 
 let customSelectGlobalBound = false;
@@ -271,6 +285,12 @@ let supportChatMarkReadInFlight = false;
 let unsubscribeSupportChatDoc = null;
 let unsubscribeSupportChatMessages = null;
 let orderSubmitIntentInFlight = false;
+let cartReminderTimerId = null;
+let cartReminderStartedAt = 0;
+let cartReminderPlannedFireAt = 0;
+let cartReminderShown = false;
+let cartReminderOrderSubmitted = false;
+let cartReminderPendingVisibility = false;
 let buildVersionMarker = null;
 const BUILD_VERSION = '20260228-16';
 const defaultToastMessage = toast?.textContent || '';
@@ -1083,6 +1103,238 @@ function devLog(message, details = null) {
     return;
   }
   console.log(`[drink submit] ${message}`);
+}
+
+function readSessionBool(key) {
+  try {
+    return sessionStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionBool(key, value) {
+  try {
+    sessionStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function readSessionNumber(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return 0;
+    const numericValue = Number(raw);
+    return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeSessionNumber(key, value) {
+  try {
+    if (!Number.isFinite(value) || value <= 0) {
+      sessionStorage.removeItem(key);
+      return;
+    }
+    sessionStorage.setItem(key, String(Math.floor(value)));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function randomCartReminderDelayMs() {
+  const range = CART_REMINDER_MAX_DELAY_MS - CART_REMINDER_MIN_DELAY_MS;
+  return CART_REMINDER_MIN_DELAY_MS + Math.floor(Math.random() * (range + 1));
+}
+
+function getCurrentCartQuantity() {
+  return getCartItemCount(buildCartEntries());
+}
+
+function clearCartReminderTimer() {
+  if (cartReminderTimerId !== null) {
+    window.clearTimeout(cartReminderTimerId);
+    cartReminderTimerId = null;
+  }
+}
+
+function isCartReminderModalOpen() {
+  return !!ui.cartReminderModal.modal
+    && !ui.cartReminderModal.modal.hidden
+    && ui.cartReminderModal.modal.classList.contains('show');
+}
+
+function closeCartReminderModal({ restoreFocus = true } = {}) {
+  const modalState = ui.cartReminderModal;
+  if (!modalState.modal) return;
+  closeModal(modalState.modal);
+  if (restoreFocus && modalState.lastFocused instanceof HTMLElement) {
+    modalState.lastFocused.focus({ preventScroll: true });
+  }
+  modalState.lastFocused = null;
+}
+
+function openCartFromReminder() {
+  closeCartReminderModal({ restoreFocus: false });
+  if (isMobileViewport()) {
+    openMobileCart();
+    return;
+  }
+  cartPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (cartPanel instanceof HTMLElement) {
+    cartPanel.focus({ preventScroll: true });
+  }
+}
+
+function showCartReminderModal() {
+  if (cartReminderShown || cartReminderOrderSubmitted) return;
+  if (getCurrentCartQuantity() <= 0) return;
+  if (document.visibilityState !== 'visible') {
+    cartReminderPendingVisibility = true;
+    return;
+  }
+
+  const modalState = ui.cartReminderModal;
+  if (!modalState.modal) return;
+
+  cartReminderShown = true;
+  cartReminderPendingVisibility = false;
+  writeSessionBool(CART_REMINDER_SESSION_KEYS.reminderShown, true);
+  clearCartReminderTimer();
+
+  modalState.lastFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  openModal(modalState.modal);
+  modalState.continueButton?.focus({ preventScroll: true });
+}
+
+function onCartReminderTimerReached() {
+  cartReminderTimerId = null;
+  if (cartReminderShown || cartReminderOrderSubmitted) return;
+  if (getCurrentCartQuantity() <= 0) {
+    cancelCartReminderIfNeeded(0);
+    return;
+  }
+  if (document.visibilityState !== 'visible') {
+    cartReminderPendingVisibility = true;
+    return;
+  }
+  showCartReminderModal();
+}
+
+function scheduleCartReminderTimer(plannedFireAt) {
+  clearCartReminderTimer();
+  const delayMs = Math.max(0, plannedFireAt - Date.now());
+  cartReminderTimerId = window.setTimeout(onCartReminderTimerReached, delayMs);
+}
+
+function scheduleCartReminderIfNeeded(totalQty) {
+  if (totalQty <= 0) return;
+  if (cartReminderShown || cartReminderOrderSubmitted) return;
+
+  const now = Date.now();
+  if (cartReminderPlannedFireAt <= 0) {
+    cartReminderStartedAt = now;
+    cartReminderPlannedFireAt = now + randomCartReminderDelayMs();
+    writeSessionNumber(CART_REMINDER_SESSION_KEYS.timerStartedAt, cartReminderStartedAt);
+    writeSessionNumber(CART_REMINDER_SESSION_KEYS.plannedFireAt, cartReminderPlannedFireAt);
+  }
+
+  if (now >= cartReminderPlannedFireAt) {
+    onCartReminderTimerReached();
+    return;
+  }
+
+  if (cartReminderTimerId === null) {
+    scheduleCartReminderTimer(cartReminderPlannedFireAt);
+  }
+}
+
+function cancelCartReminderIfNeeded(totalQty) {
+  if (totalQty > 0) return;
+  clearCartReminderTimer();
+  cartReminderPendingVisibility = false;
+  cartReminderStartedAt = 0;
+  cartReminderPlannedFireAt = 0;
+  writeSessionNumber(CART_REMINDER_SESSION_KEYS.timerStartedAt, 0);
+  writeSessionNumber(CART_REMINDER_SESSION_KEYS.plannedFireAt, 0);
+  if (isCartReminderModalOpen()) {
+    closeCartReminderModal({ restoreFocus: false });
+  }
+}
+
+function markCartReminderOrderSubmitted() {
+  cartReminderOrderSubmitted = true;
+  writeSessionBool(CART_REMINDER_SESSION_KEYS.orderSubmitted, true);
+  clearCartReminderTimer();
+  cartReminderPendingVisibility = false;
+  cartReminderStartedAt = 0;
+  cartReminderPlannedFireAt = 0;
+  writeSessionNumber(CART_REMINDER_SESSION_KEYS.timerStartedAt, 0);
+  writeSessionNumber(CART_REMINDER_SESSION_KEYS.plannedFireAt, 0);
+  if (isCartReminderModalOpen()) {
+    closeCartReminderModal({ restoreFocus: false });
+  }
+}
+
+function syncCartReminderForQuantity(totalQty) {
+  if (totalQty > 0) {
+    scheduleCartReminderIfNeeded(totalQty);
+    return;
+  }
+  cancelCartReminderIfNeeded(totalQty);
+}
+
+function initCartReminder() {
+  cartReminderShown = readSessionBool(CART_REMINDER_SESSION_KEYS.reminderShown);
+  cartReminderOrderSubmitted = readSessionBool(CART_REMINDER_SESSION_KEYS.orderSubmitted);
+  cartReminderStartedAt = readSessionNumber(CART_REMINDER_SESSION_KEYS.timerStartedAt);
+  cartReminderPlannedFireAt = readSessionNumber(CART_REMINDER_SESSION_KEYS.plannedFireAt);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (cartReminderShown || cartReminderOrderSubmitted) return;
+    if (getCurrentCartQuantity() <= 0) return;
+
+    if (cartReminderPendingVisibility) {
+      showCartReminderModal();
+      return;
+    }
+
+    if (cartReminderPlannedFireAt > 0) {
+      if (Date.now() >= cartReminderPlannedFireAt) {
+        showCartReminderModal();
+        return;
+      }
+      if (cartReminderTimerId === null) {
+        scheduleCartReminderTimer(cartReminderPlannedFireAt);
+      }
+    }
+  });
+
+  if (cartReminderOrderSubmitted) {
+    markCartReminderOrderSubmitted();
+    return;
+  }
+
+  const initialQty = getCurrentCartQuantity();
+  if (initialQty <= 0) {
+    cancelCartReminderIfNeeded(0);
+    return;
+  }
+
+  if (!cartReminderShown && cartReminderPlannedFireAt > 0 && Date.now() >= cartReminderPlannedFireAt) {
+    if (document.visibilityState === 'visible') {
+      showCartReminderModal();
+    } else {
+      cartReminderPendingVisibility = true;
+    }
+    return;
+  }
+
+  syncCartReminderForQuantity(initialQty);
 }
 
 function normalizeDrinkCandidate(value) {
@@ -2677,6 +2929,7 @@ function renderCart() {
       `עגלה: ${itemCount} פריטים, ${totalLabel}`,
     );
   }
+  syncCartReminderForQuantity(itemCount);
 }
 
 function serializeState() {
@@ -3303,6 +3556,40 @@ function buildDrinkSubmitModal() {
   });
 }
 
+function buildCartReminderModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay cart-reminder-modal';
+  modal.id = 'cartReminderModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card cart-reminder-card" role="dialog" aria-modal="true" aria-labelledby="cartReminderTitle">
+      <h3 id="cartReminderTitle">ההזמנה שלך מחכה 👀</h3>
+      <div class="modal-actions cart-reminder-actions">
+        <button type="button" class="btn secondary" id="cartReminderContinueBtn">להמשיך להזמין</button>
+        <button type="button" class="btn" id="cartReminderOpenCartBtn">לעבור לעגלה</button>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  const modalState = ui.cartReminderModal;
+  modalState.modal = modal;
+  modalState.continueButton = modal.querySelector('#cartReminderContinueBtn');
+  modalState.goToCartButton = modal.querySelector('#cartReminderOpenCartBtn');
+
+  modalState.continueButton?.addEventListener('click', () => {
+    closeCartReminderModal();
+  });
+  modalState.goToCartButton?.addEventListener('click', () => {
+    openCartFromReminder();
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      closeCartReminderModal();
+    }
+  });
+}
+
 function openLineEditor(lineId) {
   const line = state.cartLines.find((entry) => entry.lineId === lineId);
   if (!line) return;
@@ -3473,6 +3760,7 @@ async function submitOrderFromConfirm() {
 
   try {
     const orderRef = await saveOrderToFirestore(orderPayload);
+    markCartReminderOrderSubmitted();
     const orderId = orderRef?.id;
     if (orderId) {
       storeLastOrderId(orderId);
@@ -3614,6 +3902,10 @@ function bindFormEvents() {
   mobileCartCloseButton?.addEventListener('click', () => closeMobileCart());
   mobileCartBackdrop?.addEventListener('click', closeMobileCart);
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isCartReminderModalOpen()) {
+      closeCartReminderModal();
+      return;
+    }
     if (event.key === 'Escape' && isDrinkSubmitModalOpen()) {
       handleDrinkSubmitSkip();
       return;
@@ -3658,12 +3950,14 @@ function init() {
   buildResetAllModal();
   buildDrinkChangeModal();
   buildDrinkSubmitModal();
+  buildCartReminderModal();
   bindSupportChatUiEvents();
   bootstrapSupportChat().catch((error) => {
     console.error('Failed to bootstrap support chat', error);
     if (supportChatButton) supportChatButton.disabled = true;
   });
   initItems();
+  initCartReminder();
   initStyledSelect(pickupSelect);
   restoreInputs();
   refreshPickupOptions();
