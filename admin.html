@@ -11,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./admin.css?v=20260228-10" />
+    <link rel="stylesheet" href="./admin.css?v=20260301-chat-1" />
   </head>
   <body>
     <div class="pin-gate" id="pinGate">
@@ -39,6 +39,7 @@
         </div>
         <div class="topbar-actions">
           <button id="openHistoryViewBtn" type="button">היסטוריית הזמנות</button>
+          <button id="openSupportChatsViewBtn" type="button">צ׳אט שירות לקוחות</button>
           <button id="enableNotificationsBtn" type="button">אפשר התראות דפדפן</button>
           <button id="openDeleteOrdersBtn" type="button">מחיקת הזמנות</button>
           <button id="logoutBtn" class="logout-btn" type="button">התנתק</button>
@@ -111,6 +112,55 @@
           <button id="historyLoadMoreBtn" type="button" hidden>טען עוד</button>
         </div>
       </section>
+
+      <section id="supportChatsView" hidden>
+        <header class="history-head">
+          <div>
+            <h3>צ׳אט שירות לקוחות</h3>
+            <p>שיחות חדשות ומענה בזמן אמת.</p>
+          </div>
+          <button id="closeSupportChatsViewBtn" type="button">חזרה ללוח הזמנות</button>
+        </header>
+
+        <div class="support-admin-layout">
+          <aside class="support-chat-list-wrap">
+            <div id="supportChatsList" class="support-chat-list" aria-live="polite"></div>
+            <p id="supportChatsEmptyState" class="empty-state">אין שיחות פעילות כרגע.</p>
+          </aside>
+
+          <section class="support-chat-panel" id="supportChatPanel">
+            <div id="supportChatPanelEmpty" class="support-chat-panel-empty">
+              בחרו שיחה מהרשימה כדי להתחיל מענה.
+            </div>
+            <div id="supportChatPanelBody" hidden>
+              <header class="support-chat-panel-head">
+                <div>
+                  <h4 id="supportChatPanelTitle">צ׳אט</h4>
+                  <p id="supportChatPanelMeta"></p>
+                </div>
+                <div class="support-chat-panel-actions">
+                  <span id="supportChatPanelStatus" class="status-pill">פתוח</span>
+                  <button id="closeSupportChatBtn" type="button">סגור צ׳אט</button>
+                </div>
+              </header>
+              <div id="supportChatMessages" class="support-chat-messages"></div>
+              <form id="supportChatComposeForm" class="support-chat-compose-form">
+                <label for="supportChatInput">תגובה ללקוח</label>
+                <textarea
+                  id="supportChatInput"
+                  maxlength="500"
+                  placeholder="כתבו תגובה לשירות הלקוחות..."
+                ></textarea>
+                <div class="support-chat-compose-foot">
+                  <span id="supportChatCharCount">נותרו 500 תווים</span>
+                  <button id="supportChatSendBtn" type="submit">שלח</button>
+                </div>
+                <p id="supportChatError" class="order-reply-error" aria-live="polite"></p>
+              </form>
+            </div>
+          </section>
+        </div>
+      </section>
     </main>
 
     <div class="admin-modal-backdrop" id="deleteOrdersBackdrop" hidden></div>
@@ -179,6 +229,6 @@
 
     <div class="admin-toast" id="adminToast" role="status" aria-live="polite"></div>
 
-    <script type="module" src="./admin.js?v=20260228-10"></script>
+    <script type="module" src="./admin.js?v=20260301-chat-1"></script>
   </body>
 </html>

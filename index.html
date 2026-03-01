@@ -22,7 +22,7 @@
       href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./style.css?v=20260228-16" />
+    <link rel="stylesheet" href="./style.css?v=20260301-chat-1" />
   </head>
   <body>
     <a href="#main" class="skip-link">דלגו לתוכן</a>
@@ -52,6 +52,10 @@
             >וואטסאפ</a
           >
           <a class="btn secondary" href="tel:050-0000000">שיחה</a>
+          <button class="btn secondary support-chat-nav-btn" id="supportChatBtn" type="button">
+            שירות לקוחות
+            <span class="support-chat-nav-badge" id="supportChatBadge" hidden>0</span>
+          </button>
           <a class="btn secondary" href="#location">מיקום</a>
           <a class="btn secondary" href="#gallery-title">תפריט</a>
         </nav>
@@ -539,10 +543,62 @@
     <button class="top-button" id="backToTop" aria-label="חזרה למעלה">
       למעלה
     </button>
+
+    <div class="support-chat-modal-backdrop" id="supportChatBackdrop" hidden></div>
+    <section
+      class="support-chat-modal"
+      id="supportChatModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="supportChatTitle"
+      hidden
+    >
+      <header class="support-chat-head">
+        <div>
+          <h3 id="supportChatTitle">צ׳אט שירות לקוחות</h3>
+          <p id="supportChatSubTitle">מענה חי בזמן אמת</p>
+        </div>
+        <button id="supportChatCloseBtn" class="support-chat-close-btn" type="button" aria-label="סגירה">
+          ×
+        </button>
+      </header>
+
+      <div class="support-chat-intro" id="supportChatIntro">
+        <p>כדי להתחיל צ׳אט, השאירו שם וטלפון.</p>
+        <label for="supportChatName">שם</label>
+        <input id="supportChatName" type="text" autocomplete="name" placeholder="השם שלך" />
+        <label for="supportChatPhone">טלפון</label>
+        <input id="supportChatPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="050-0000000" />
+        <p class="support-chat-error" id="supportChatIntroError" aria-live="polite"></p>
+        <button class="btn" id="supportChatStartBtn" type="button">התחל צ׳אט</button>
+      </div>
+
+      <div class="support-chat-thread" id="supportChatThread" hidden>
+        <div class="support-chat-status-row">
+          <span id="supportChatStatusChip" class="support-chat-status-chip open">פתוח</span>
+          <span id="supportChatMetaText" class="support-chat-meta-text"></span>
+        </div>
+        <div class="support-chat-messages" id="supportChatMessages" aria-live="polite"></div>
+        <form class="support-chat-compose" id="supportChatComposeForm">
+          <label for="supportChatInput">הודעה</label>
+          <textarea
+            id="supportChatInput"
+            maxlength="500"
+            placeholder="כתבו כאן הודעה לשירות לקוחות..."
+          ></textarea>
+          <div class="support-chat-compose-foot">
+            <span id="supportChatCharCount">נותרו 500 תווים</span>
+            <button class="btn" id="supportChatSendBtn" type="submit">שלח</button>
+          </div>
+          <p class="support-chat-error" id="supportChatError" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
     <div class="toast" id="toast" role="status" aria-live="polite">
       המספר הועתק
     </div>
 
-    <script type="module" src="./main.js?v=20260228-17"></script>
+    <script type="module" src="./main.js?v=20260301-chat-1"></script>
   </body>
 </html>

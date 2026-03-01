@@ -8,6 +8,7 @@ const DELETE_CONFIRM_PHRASE = 'מחק';
 const DELETE_BATCH_SIZE = 200;
 const HISTORY_PAGE_SIZE = 50;
 const ORDER_MESSAGE_MAX_CHARS = 500;
+const SUPPORT_CHAT_MAX_CHARS = 500;
 
 const STATUS_LABELS = {
   new: 'חדש',
@@ -42,6 +43,24 @@ let historyEmptyState = null;
 let historyLoadMoreBtn = null;
 let openHistoryViewBtn = null;
 let closeHistoryViewBtn = null;
+let openSupportChatsViewBtn = null;
+let closeSupportChatsViewBtn = null;
+let supportChatsView = null;
+let supportChatsList = null;
+let supportChatsEmptyState = null;
+let supportChatPanel = null;
+let supportChatPanelEmpty = null;
+let supportChatPanelBody = null;
+let supportChatPanelTitle = null;
+let supportChatPanelMeta = null;
+let supportChatPanelStatus = null;
+let supportChatMessages = null;
+let supportChatComposeForm = null;
+let supportChatInput = null;
+let supportChatCharCount = null;
+let supportChatSendBtn = null;
+let supportChatError = null;
+let closeSupportChatBtn = null;
 let historySearchInput = null;
 let historyRangeButtons = null;
 let adminToast = null;
@@ -75,20 +94,31 @@ let toastTimer = null;
 let initializedSnapshot = false;
 let audioContext = null;
 let unsubscribeOrders = null;
+let unsubscribeSupportChats = null;
+let unsubscribeSupportChatMessages = null;
 let firestoreApi = null;
 let firebaseInitPromise = null;
 let latestOrders = [];
+let latestSupportChats = [];
 let deleteMode = 'all';
 let deletionInFlight = false;
 let isDeleteModalOpen = false;
 let showOnlyDeniedDelivery = false;
 let isHistoryView = false;
+let isSupportChatsView = false;
 let historySearchTerm = '';
 let historyDateRange = 'all';
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 const selectedOrderIds = new Set();
 let isAdminSessionUnlocked = false;
 const orderChatStateById = new Map();
+let supportChatsInitializedSnapshot = false;
+let supportActiveChatId = '';
+let supportActiveMessages = [];
+let supportChatSendInFlight = false;
+let supportChatMarkReadInFlight = false;
+const supportUnreadCountByChatId = new Map();
+const DEFAULT_ADMIN_TITLE = document.title || 'Admin - Shawarma Hezi';
 
 function showToast(message, timeoutMs = 2600) {
   if (!adminToast) return;
@@ -136,6 +166,7 @@ async function ensureFirebaseReady() {
   if (firestoreApi && db) return { firestoreApi, db };
 
   if (!firebaseInitPromise) {
+    // Production note: use Firebase Auth for real admin security.
     firebaseInitPromise = import(FIRESTORE_MODULE_URL)
       .then((firestoreModule) => {
         firestoreApi = firestoreModule;
@@ -631,6 +662,498 @@ function bindOrderChat(card, order) {
       errorNode.textContent = 'שגיאה בחיבור הצ׳אט למסד הנתונים.';
     });
 }
+
+function normalizeSupportChat(chatDoc) {
+  const data = chatDoc.data() || {};
+  return {
+    id: chatDoc.id,
+    ref: chatDoc.ref,
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || data.createdAt || null,
+    status: data.status === 'closed' ? 'closed' : 'open',
+    customerName: typeof data.customerName === 'string' ? data.customerName : 'לקוח',
+    customerPhone: typeof data.customerPhone === 'string' ? data.customerPhone : '--',
+    customerDeviceId:
+      typeof data.customerDeviceId === 'string' ? data.customerDeviceId : '',
+    lastMessage: typeof data.lastMessage === 'string' ? data.lastMessage : '',
+    unreadForAdmin: Number(data.unreadForAdmin) || 0,
+    unreadForCustomer: Number(data.unreadForCustomer) || 0,
+  };
+}
+
+function normalizeSupportChatMessage(messageDoc) {
+  const data = messageDoc.data() || {};
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!text) return null;
+  return {
+    id: messageDoc.id,
+    ref: messageDoc.ref,
+    sender: data.sender === 'customer' ? 'customer' : 'admin',
+    text,
+    createdAt: data.createdAt || null,
+    readByAdminAt: data.readByAdminAt || null,
+    readByCustomerAt: data.readByCustomerAt || null,
+  };
+}
+
+function supportChatStatusChip(status) {
+  const normalized = status === 'closed' ? 'closed' : 'open';
+  return {
+    className: normalized === 'closed' ? 'chat-closed' : 'chat-open',
+    label: normalized === 'closed' ? 'סגור' : 'פתוח',
+  };
+}
+
+function supportChatUpdatedMillis(chat) {
+  return toMillis(chat.updatedAt || chat.createdAt);
+}
+
+function sortedSupportChats(chats) {
+  return [...chats].sort((left, right) => {
+    if (left.status !== right.status) {
+      return left.status === 'open' ? -1 : 1;
+    }
+    return supportChatUpdatedMillis(right) - supportChatUpdatedMillis(left);
+  });
+}
+
+function setSupportChatError(message = '') {
+  if (!supportChatError) return;
+  supportChatError.textContent = message;
+}
+
+function updateSupportChatCharCounter() {
+  if (!supportChatInput || !supportChatCharCount) return;
+  const remaining = SUPPORT_CHAT_MAX_CHARS - supportChatInput.value.length;
+  supportChatCharCount.textContent = `נותרו ${remaining} תווים`;
+  supportChatCharCount.classList.toggle('is-limit', remaining <= 30);
+}
+
+function updateSupportDocumentTitle() {
+  const unreadTotal = latestSupportChats.reduce(
+    (sum, chat) => sum + (Number(chat.unreadForAdmin) || 0),
+    0,
+  );
+  document.title = unreadTotal > 0 ? `(${unreadTotal}) ${DEFAULT_ADMIN_TITLE}` : DEFAULT_ADMIN_TITLE;
+
+  if (openSupportChatsViewBtn) {
+    openSupportChatsViewBtn.textContent =
+      unreadTotal > 0
+        ? `צ׳אט שירות לקוחות (${unreadTotal})`
+        : 'צ׳אט שירות לקוחות';
+  }
+}
+
+function renderSupportChatMessages() {
+  if (!supportChatMessages) return;
+  supportChatMessages.innerHTML = '';
+
+  if (!supportActiveMessages.length) {
+    supportChatMessages.innerHTML =
+      '<p class="support-chat-empty">אין עדיין הודעות בשיחה זו.</p>';
+    return;
+  }
+
+  supportActiveMessages.forEach((message) => {
+    const row = document.createElement('div');
+    row.className = `support-chat-message-row ${message.sender}`;
+    row.innerHTML = `
+      <article class="support-chat-bubble">
+        <p>${escapeHtml(message.text)}</p>
+        <div class="support-chat-bubble-meta">
+          <span>${message.sender === 'customer' ? 'לקוח' : 'מנהל'}</span>
+          <span>${escapeHtml(formatReplyTimestamp(message.createdAt))}</span>
+        </div>
+      </article>
+    `;
+    supportChatMessages.append(row);
+  });
+  supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
+}
+
+function renderSupportChatPanel() {
+  if (!supportChatPanelEmpty || !supportChatPanelBody) return;
+
+  const activeChat = latestSupportChats.find((chat) => chat.id === supportActiveChatId) || null;
+  const hasActive = !!activeChat;
+  supportChatPanelEmpty.hidden = hasActive;
+  supportChatPanelBody.hidden = !hasActive;
+  if (!hasActive) {
+    supportActiveMessages = [];
+    renderSupportChatMessages();
+    return;
+  }
+
+  const statusChip = supportChatStatusChip(activeChat.status);
+  if (supportChatPanelTitle) {
+    supportChatPanelTitle.textContent = `${activeChat.customerName} (${activeChat.customerPhone})`;
+  }
+  if (supportChatPanelMeta) {
+    supportChatPanelMeta.textContent = `צ׳אט #${activeChat.id.slice(0, 8)} | עודכן: ${formatReplyTimestamp(activeChat.updatedAt)}`;
+  }
+  if (supportChatPanelStatus) {
+    supportChatPanelStatus.className = `status-pill ${statusChip.className}`;
+    supportChatPanelStatus.textContent = statusChip.label;
+  }
+
+  const isClosed = activeChat.status === 'closed';
+  if (supportChatInput) supportChatInput.disabled = isClosed;
+  if (supportChatSendBtn) supportChatSendBtn.disabled = isClosed || supportChatSendInFlight;
+  if (closeSupportChatBtn) closeSupportChatBtn.disabled = isClosed;
+  renderSupportChatMessages();
+}
+
+function renderSupportChatsList() {
+  if (!supportChatsList || !supportChatsEmptyState) return;
+  supportChatsList.innerHTML = '';
+
+  const chats = sortedSupportChats(latestSupportChats);
+  const hasChats = chats.length > 0;
+  supportChatsEmptyState.hidden = hasChats;
+  if (!hasChats) {
+    supportChatsEmptyState.textContent = 'אין שיחות פעילות כרגע.';
+    renderSupportChatPanel();
+    return;
+  }
+
+  chats.forEach((chat) => {
+    const statusChip = supportChatStatusChip(chat.status);
+    const unreadCount = Number(chat.unreadForAdmin) || 0;
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'support-chat-list-item';
+    item.classList.toggle('active', chat.id === supportActiveChatId);
+    item.dataset.chatId = chat.id;
+    item.innerHTML = `
+      <div class="support-chat-list-top">
+        <div>
+          <h4>${escapeHtml(chat.customerName)}</h4>
+          <div class="support-chat-list-phone">${escapeHtml(chat.customerPhone)}</div>
+        </div>
+        <span class="status-pill ${statusChip.className}">${statusChip.label}</span>
+      </div>
+      <p class="support-chat-list-message">${escapeHtml(chat.lastMessage || 'ללא הודעות עדיין')}</p>
+      <div class="support-chat-list-meta">
+        <span>${escapeHtml(formatReplyTimestamp(chat.updatedAt))}</span>
+        <span class="support-chat-unread-badge" ${unreadCount > 0 ? '' : 'hidden'}>${unreadCount}</span>
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      openSupportChat(chat.id);
+    });
+    supportChatsList.append(item);
+  });
+
+  renderSupportChatPanel();
+}
+
+function stopSupportChatMessagesListener() {
+  if (typeof unsubscribeSupportChatMessages === 'function') {
+    unsubscribeSupportChatMessages();
+  }
+  unsubscribeSupportChatMessages = null;
+}
+
+function stopRealtimeSupportChats() {
+  if (typeof unsubscribeSupportChats === 'function') {
+    unsubscribeSupportChats();
+  }
+  unsubscribeSupportChats = null;
+  stopSupportChatMessagesListener();
+  latestSupportChats = [];
+  supportUnreadCountByChatId.clear();
+  supportChatsInitializedSnapshot = false;
+  supportActiveChatId = '';
+  supportActiveMessages = [];
+  updateSupportDocumentTitle();
+}
+
+async function markSupportMessagesReadByAdmin(chatId = supportActiveChatId) {
+  if (!chatId || supportChatMarkReadInFlight) return;
+  const activeChat = latestSupportChats.find((chat) => chat.id === chatId) || null;
+  if (!activeChat) return;
+
+  const unreadMessages = supportActiveMessages.filter(
+    (message) =>
+      message.sender === 'customer' &&
+      !message.readByAdminAt &&
+      message.ref,
+  );
+  if (unreadMessages.length === 0 && Number(activeChat.unreadForAdmin) <= 0) return;
+
+  supportChatMarkReadInFlight = true;
+  try {
+    const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+    const batch = fs.writeBatch(firestoreDb);
+    unreadMessages.forEach((message) => {
+      batch.update(message.ref, { readByAdminAt: fs.serverTimestamp() });
+    });
+    batch.update(fs.doc(firestoreDb, 'chats', chatId), { unreadForAdmin: 0 });
+    await batch.commit();
+  } catch (error) {
+    console.error('Failed to mark support chat messages as read', error);
+  } finally {
+    supportChatMarkReadInFlight = false;
+  }
+}
+
+function attachSupportChatMessagesListener(chatId) {
+  stopSupportChatMessagesListener();
+  if (!chatId) return;
+
+  ensureFirebaseReady()
+    .then(({ firestoreApi: fs, db: firestoreDb }) => {
+      const messagesQuery = fs.query(
+        fs.collection(firestoreDb, 'chats', chatId, 'messages'),
+        fs.orderBy('createdAt', 'asc'),
+        fs.limit(300),
+      );
+
+      unsubscribeSupportChatMessages = fs.onSnapshot(
+        messagesQuery,
+        (snapshot) => {
+          if (chatId !== supportActiveChatId) return;
+          supportActiveMessages = snapshot.docs
+            .map((messageDoc) => normalizeSupportChatMessage(messageDoc))
+            .filter(Boolean);
+          renderSupportChatMessages();
+          markSupportMessagesReadByAdmin(chatId);
+        },
+        (error) => {
+          console.error('Support chat messages listener failed', error);
+          setSupportChatError('שגיאה בטעינת הודעות הצ׳אט.');
+        },
+      );
+    })
+    .catch((error) => {
+      console.error('Failed to attach support chat listener', error);
+      setSupportChatError('שגיאה בחיבור הצ׳אט למסד הנתונים.');
+    });
+}
+
+function openSupportChat(chatId) {
+  if (!chatId) return;
+  supportActiveChatId = chatId;
+  supportActiveMessages = [];
+  setSupportChatError('');
+  renderSupportChatsList();
+  attachSupportChatMessagesListener(chatId);
+  markSupportMessagesReadByAdmin(chatId);
+}
+
+async function sendAdminSupportMessage() {
+  if (supportChatSendInFlight) return;
+  if (!isAdminSessionUnlocked || dashboard?.hidden) {
+    setSupportChatError('יש לבצע כניסת מנהל לפני שליחה.');
+    return;
+  }
+  if (!supportActiveChatId) {
+    setSupportChatError('בחרו שיחה לפני שליחה.');
+    return;
+  }
+
+  const text = String(supportChatInput?.value || '').trim();
+  if (!text) {
+    setSupportChatError('יש להזין הודעה לפני שליחה.');
+    return;
+  }
+  if (text.length > SUPPORT_CHAT_MAX_CHARS) {
+    setSupportChatError(`מקסימום ${SUPPORT_CHAT_MAX_CHARS} תווים.`);
+    return;
+  }
+
+  supportChatSendInFlight = true;
+  if (supportChatSendBtn) supportChatSendBtn.disabled = true;
+  setSupportChatError('');
+
+  try {
+    const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+    const activeChat =
+      latestSupportChats.find((chat) => chat.id === supportActiveChatId) || null;
+    if (!activeChat) {
+      throw new Error('SUPPORT_CHAT_NOT_FOUND');
+    }
+    const chatRef = fs.doc(firestoreDb, 'chats', supportActiveChatId);
+    const messagesRef = fs.collection(firestoreDb, 'chats', supportActiveChatId, 'messages');
+    const messageRef = fs.doc(messagesRef);
+    const batch = fs.writeBatch(firestoreDb);
+
+    batch.set(messageRef, {
+      createdAt: fs.serverTimestamp(),
+      sender: 'admin',
+      text,
+      delivered: true,
+      customerDeviceId: activeChat?.customerDeviceId || '',
+      readByAdminAt: fs.serverTimestamp(),
+      readByCustomerAt: null,
+    });
+    batch.update(chatRef, {
+      status: 'open',
+      updatedAt: fs.serverTimestamp(),
+      lastMessage: text.slice(0, 180),
+      unreadForCustomer: fs.increment(1),
+    });
+    await batch.commit();
+    if (supportChatInput) {
+      supportChatInput.value = '';
+      updateSupportChatCharCounter();
+    }
+  } catch (error) {
+    console.error('Failed to send admin support message', error);
+    setSupportChatError('שליחה נכשלה, נסו שוב');
+  } finally {
+    supportChatSendInFlight = false;
+    renderSupportChatPanel();
+  }
+}
+
+async function closeActiveSupportChat() {
+  if (!supportActiveChatId) return;
+  const activeChat = latestSupportChats.find((chat) => chat.id === supportActiveChatId) || null;
+  if (!activeChat || activeChat.status === 'closed') return;
+  try {
+    const { firestoreApi: fs, db: firestoreDb } = await ensureFirebaseReady();
+    await fs.updateDoc(fs.doc(firestoreDb, 'chats', supportActiveChatId), {
+      status: 'closed',
+      updatedAt: fs.serverTimestamp(),
+    });
+    showToast('הצ׳אט נסגר');
+  } catch (error) {
+    console.error('Failed to close support chat', error);
+    setSupportChatError('שגיאה בסגירת הצ׳אט.');
+  }
+}
+
+function notifyIncomingSupportChats(snapshot, currentChats) {
+  if (!supportChatsInitializedSnapshot) {
+    supportChatsInitializedSnapshot = true;
+    supportUnreadCountByChatId.clear();
+    currentChats.forEach((chat) => {
+      supportUnreadCountByChatId.set(chat.id, Number(chat.unreadForAdmin) || 0);
+    });
+    return;
+  }
+
+  const chatById = new Map(currentChats.map((chat) => [chat.id, chat]));
+  let shouldAlert = false;
+  let alertMessage = '';
+
+  snapshot.docChanges().forEach((change) => {
+    const chat = chatById.get(change.doc.id);
+    if (!chat) return;
+
+    const prevUnread = Number(supportUnreadCountByChatId.get(chat.id) || 0);
+    const nextUnread = Number(chat.unreadForAdmin || 0);
+
+    if (change.type === 'added') {
+      shouldAlert = true;
+      alertMessage = `נפתח צ׳אט חדש: ${chat.customerName}`;
+    } else if (nextUnread > prevUnread) {
+      shouldAlert = true;
+      alertMessage = `הודעה חדשה בצ׳אט: ${chat.customerName}`;
+    }
+  });
+
+  supportUnreadCountByChatId.clear();
+  currentChats.forEach((chat) => {
+    supportUnreadCountByChatId.set(chat.id, Number(chat.unreadForAdmin) || 0);
+  });
+
+  if (shouldAlert && alertMessage) {
+    showToast(alertMessage, 3600);
+    playNewOrderSound();
+    notifyBrowser(alertMessage);
+  }
+}
+
+async function startRealtimeSupportChats() {
+  let firebaseRuntime = null;
+  try {
+    firebaseRuntime = await ensureFirebaseReady();
+    if (!firebaseRuntime?.db) {
+      throw new Error('Firestore DB instance is missing.');
+    }
+  } catch (error) {
+    console.error('Failed to initialize Firebase for support chats', error);
+    setSupportChatError('שגיאה בטעינת צ׳אט שירות הלקוחות.');
+    return;
+  }
+
+  if (typeof unsubscribeSupportChats === 'function') {
+    unsubscribeSupportChats();
+  }
+
+  const { firestoreApi: fs, db: firestoreDb } = firebaseRuntime;
+  const chatsQuery = fs.query(
+    fs.collection(firestoreDb, 'chats'),
+    fs.orderBy('updatedAt', 'desc'),
+    fs.limit(250),
+  );
+
+  unsubscribeSupportChats = fs.onSnapshot(
+    chatsQuery,
+    (snapshot) => {
+      const chats = snapshot.docs.map((chatDoc) => normalizeSupportChat(chatDoc));
+      latestSupportChats = sortedSupportChats(chats);
+      notifyIncomingSupportChats(snapshot, latestSupportChats);
+
+      if (supportActiveChatId) {
+        const stillExists = latestSupportChats.some((chat) => chat.id === supportActiveChatId);
+        if (!stillExists) {
+          supportActiveChatId = '';
+          supportActiveMessages = [];
+          stopSupportChatMessagesListener();
+        }
+      }
+
+      if (!supportActiveChatId && latestSupportChats.length > 0) {
+        supportActiveChatId = latestSupportChats[0].id;
+        attachSupportChatMessagesListener(supportActiveChatId);
+      }
+
+      updateSupportDocumentTitle();
+      renderSupportChatsList();
+      if (isSupportChatsView && supportActiveChatId) {
+        markSupportMessagesReadByAdmin(supportActiveChatId);
+      }
+    },
+    (error) => {
+      console.error('Realtime support chats listener failed', error);
+      setSupportChatError('שגיאה בעדכוני צ׳אט שירות לקוחות.');
+    },
+  );
+}
+
+function bindSupportChatEvents() {
+  if (supportChatComposeForm) {
+    supportChatComposeForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendAdminSupportMessage();
+    });
+  }
+
+  if (supportChatInput) {
+    supportChatInput.addEventListener('input', () => {
+      if (supportChatInput.value.length > SUPPORT_CHAT_MAX_CHARS) {
+        supportChatInput.value = supportChatInput.value.slice(0, SUPPORT_CHAT_MAX_CHARS);
+      }
+      setSupportChatError('');
+      updateSupportChatCharCounter();
+    });
+  }
+
+  supportChatMessages?.addEventListener('click', () => {
+    markSupportMessagesReadByAdmin();
+  });
+  supportChatPanel?.addEventListener('focusin', () => {
+    markSupportMessagesReadByAdmin();
+  });
+
+  closeSupportChatBtn?.addEventListener('click', () => {
+    closeActiveSupportChat();
+  });
+}
+
 function buildStatusButtons(order) {
   const wrap = document.createElement('div');
   wrap.className = 'status-buttons';
@@ -846,19 +1369,40 @@ function renderHistoryOrders() {
 
 function showHistoryBoard() {
   isHistoryView = true;
+  isSupportChatsView = false;
   if (liveBoardView) liveBoardView.hidden = true;
   if (historyView) historyView.hidden = false;
+  if (supportChatsView) supportChatsView.hidden = true;
   if (openHistoryViewBtn) openHistoryViewBtn.hidden = true;
+  if (openSupportChatsViewBtn) openSupportChatsViewBtn.hidden = false;
   updateSelectionToolbar();
   renderHistoryOrders();
 }
 
 function showLiveBoard() {
   isHistoryView = false;
+  isSupportChatsView = false;
   if (historyView) historyView.hidden = true;
+  if (supportChatsView) supportChatsView.hidden = true;
   if (liveBoardView) liveBoardView.hidden = false;
   if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
+  if (openSupportChatsViewBtn) openSupportChatsViewBtn.hidden = false;
   updateSelectionToolbar();
+}
+
+function showSupportChatsBoard() {
+  isHistoryView = false;
+  isSupportChatsView = true;
+  if (historyView) historyView.hidden = true;
+  if (liveBoardView) liveBoardView.hidden = true;
+  if (supportChatsView) supportChatsView.hidden = false;
+  if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
+  if (openSupportChatsViewBtn) openSupportChatsViewBtn.hidden = true;
+  updateSelectionToolbar();
+  renderSupportChatsList();
+  if (supportActiveChatId) {
+    markSupportMessagesReadByAdmin(supportActiveChatId);
+  }
 }
 
 function getDeleteModeValue() {
@@ -932,7 +1476,11 @@ function getDeleteOptionLabel(mode = deleteMode) {
 function updateSelectionToolbar() {
   if (!selectionToolbar || !selectionToolbarInfo || !deleteSelectedOrdersBtn) return;
 
-  const selectionModeEnabled = deleteMode === 'selection' && !dashboard.hidden && !isHistoryView;
+  const selectionModeEnabled =
+    deleteMode === 'selection' &&
+    !dashboard.hidden &&
+    !isHistoryView &&
+    !isSupportChatsView;
   selectionToolbar.hidden = !selectionModeEnabled;
   document.body.classList.toggle('selection-mode', selectionModeEnabled);
 
@@ -1418,10 +1966,17 @@ function setPinGateVisible(isVisible) {
 
 function resetDashboardView() {
   latestOrders = [];
+  latestSupportChats = [];
   selectedOrderIds.clear();
   cleanupAllOrderChats();
+  supportActiveChatId = '';
+  supportActiveMessages = [];
+  supportChatSendInFlight = false;
+  supportChatMarkReadInFlight = false;
+  supportUnreadCountByChatId.clear();
   showOnlyDeniedDelivery = false;
   isHistoryView = false;
+  isSupportChatsView = false;
   historySearchTerm = '';
   historyDateRange = 'all';
   historyVisibleCount = HISTORY_PAGE_SIZE;
@@ -1440,8 +1995,10 @@ function resetDashboardView() {
   if (historyEmptyState) historyEmptyState.hidden = false;
   if (historyLoadMoreBtn) historyLoadMoreBtn.hidden = true;
   if (historyView) historyView.hidden = true;
+  if (supportChatsView) supportChatsView.hidden = true;
   if (liveBoardView) liveBoardView.hidden = false;
   if (openHistoryViewBtn) openHistoryViewBtn.hidden = false;
+  if (openSupportChatsViewBtn) openSupportChatsViewBtn.hidden = false;
   if (lastSync) {
     lastSync.textContent = 'ממתין לעדכון...';
   }
@@ -1450,6 +2007,13 @@ function resetDashboardView() {
   if (countReady) countReady.textContent = '0';
   if (ordersList) ordersList.innerHTML = '';
   if (emptyState) emptyState.hidden = false;
+  if (supportChatsList) supportChatsList.innerHTML = '';
+  if (supportChatsEmptyState) supportChatsEmptyState.hidden = false;
+  if (supportChatInput) supportChatInput.value = '';
+  updateSupportChatCharCounter();
+  setSupportChatError('');
+  renderSupportChatPanel();
+  updateSupportDocumentTitle();
   updateSelectionToolbar();
 }
 
@@ -1460,6 +2024,7 @@ function stopRealtimeOrders() {
   unsubscribeOrders = null;
   initializedSnapshot = false;
   cleanupAllOrderChats();
+  stopRealtimeSupportChats();
 }
 
 function lockDashboard({ clearStoredAuth = true, focusPin = true } = {}) {
@@ -1509,6 +2074,12 @@ function unlockDashboard({ persist = true } = {}) {
       showFatalError(error);
     });
   }
+  if (typeof unsubscribeSupportChats !== 'function') {
+    startRealtimeSupportChats().catch((error) => {
+      console.error('Failed to start support chat realtime', error);
+      setSupportChatError('שגיאה בהפעלת צ׳אט שירות לקוחות.');
+    });
+  }
 }
 
 function submitPin() {
@@ -1530,6 +2101,7 @@ function initDomRefs() {
   dashboard = document.getElementById('dashboard');
   liveBoardView = document.getElementById('liveBoardView');
   historyView = document.getElementById('historyView');
+  supportChatsView = document.getElementById('supportChatsView');
   lastSync = document.getElementById('lastSync');
   countNew = document.getElementById('countNew');
   countInProgress = document.getElementById('countInProgress');
@@ -1541,6 +2113,23 @@ function initDomRefs() {
   historyLoadMoreBtn = document.getElementById('historyLoadMoreBtn');
   openHistoryViewBtn = document.getElementById('openHistoryViewBtn');
   closeHistoryViewBtn = document.getElementById('closeHistoryViewBtn');
+  openSupportChatsViewBtn = document.getElementById('openSupportChatsViewBtn');
+  closeSupportChatsViewBtn = document.getElementById('closeSupportChatsViewBtn');
+  supportChatsList = document.getElementById('supportChatsList');
+  supportChatsEmptyState = document.getElementById('supportChatsEmptyState');
+  supportChatPanel = document.getElementById('supportChatPanel');
+  supportChatPanelEmpty = document.getElementById('supportChatPanelEmpty');
+  supportChatPanelBody = document.getElementById('supportChatPanelBody');
+  supportChatPanelTitle = document.getElementById('supportChatPanelTitle');
+  supportChatPanelMeta = document.getElementById('supportChatPanelMeta');
+  supportChatPanelStatus = document.getElementById('supportChatPanelStatus');
+  supportChatMessages = document.getElementById('supportChatMessages');
+  supportChatComposeForm = document.getElementById('supportChatComposeForm');
+  supportChatInput = document.getElementById('supportChatInput');
+  supportChatCharCount = document.getElementById('supportChatCharCount');
+  supportChatSendBtn = document.getElementById('supportChatSendBtn');
+  supportChatError = document.getElementById('supportChatError');
+  closeSupportChatBtn = document.getElementById('closeSupportChatBtn');
   historySearchInput = document.getElementById('historySearchInput');
   historyRangeButtons = document.getElementById('historyRangeButtons');
   adminToast = document.getElementById('adminToast');
@@ -1591,6 +2180,18 @@ function initAdminPage() {
 
   if (closeHistoryViewBtn) {
     closeHistoryViewBtn.addEventListener('click', () => {
+      showLiveBoard();
+    });
+  }
+
+  if (openSupportChatsViewBtn) {
+    openSupportChatsViewBtn.addEventListener('click', () => {
+      showSupportChatsBoard();
+    });
+  }
+
+  if (closeSupportChatsViewBtn) {
+    closeSupportChatsViewBtn.addEventListener('click', () => {
       showLiveBoard();
     });
   }
@@ -1703,6 +2304,10 @@ function initAdminPage() {
       lockDashboard();
     });
   }
+
+  bindSupportChatEvents();
+  updateSupportChatCharCounter();
+  updateSupportDocumentTitle();
 
   if (hasStoredAuth()) {
     unlockDashboard({ persist: false });

@@ -1,4 +1,18 @@
-import { addDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  increment,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import { db } from "./src/firebase.js";
 
 // עריכת שעות פעילות: 0=א', 1=ב', ... , 6=שבת
@@ -15,6 +29,9 @@ const WORKING_HOURS = {
 const BUSINESS_NAME = 'חזי בצומת';
 const BUSINESS_ADDRESS = 'צומת אבן יהודה';
 const PHONE = '050-0000000';
+const SUPPORT_CHAT_STORAGE_KEY = 'shawarma-hezi-support-chat-v1';
+const SUPPORT_CHAT_DEVICE_KEY = 'shawarma-hezi-support-device-id-v1';
+const SUPPORT_CHAT_MAX_CHARS = 500;
 const STORAGE_KEY = 'itziks-cart-order-v2';
 const LAST_ORDER_ID_KEY = 'itziks-cart-last-order-id';
 const SLOT_STEP_MINUTES = 15;
@@ -143,6 +160,26 @@ const lastOrderLink = document.getElementById('lastOrderLink');
 const backToTop = document.getElementById('backToTop');
 const toast = document.getElementById('toast');
 const copyPhone = document.getElementById('copyPhone');
+const supportChatButton = document.getElementById('supportChatBtn');
+const supportChatBadge = document.getElementById('supportChatBadge');
+const supportChatBackdrop = document.getElementById('supportChatBackdrop');
+const supportChatModal = document.getElementById('supportChatModal');
+const supportChatCloseBtn = document.getElementById('supportChatCloseBtn');
+const supportChatSubTitle = document.getElementById('supportChatSubTitle');
+const supportChatIntro = document.getElementById('supportChatIntro');
+const supportChatNameInput = document.getElementById('supportChatName');
+const supportChatPhoneInput = document.getElementById('supportChatPhone');
+const supportChatStartBtn = document.getElementById('supportChatStartBtn');
+const supportChatIntroError = document.getElementById('supportChatIntroError');
+const supportChatThread = document.getElementById('supportChatThread');
+const supportChatStatusChip = document.getElementById('supportChatStatusChip');
+const supportChatMetaText = document.getElementById('supportChatMetaText');
+const supportChatMessages = document.getElementById('supportChatMessages');
+const supportChatComposeForm = document.getElementById('supportChatComposeForm');
+const supportChatInput = document.getElementById('supportChatInput');
+const supportChatCharCount = document.getElementById('supportChatCharCount');
+const supportChatSendBtn = document.getElementById('supportChatSendBtn');
+const supportChatError = document.getElementById('supportChatError');
 
 const state = {
   cartLines: [],
@@ -189,6 +226,12 @@ let nativeSelectIdCounter = 0;
 let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
+let supportChatLockedScrollY = 0;
+let supportChatLastFocused = null;
+let supportChatSendInFlight = false;
+let supportChatMarkReadInFlight = false;
+let unsubscribeSupportChatDoc = null;
+let unsubscribeSupportChatMessages = null;
 let buildVersionMarker = null;
 const BUILD_VERSION = '20260228-16';
 const defaultToastMessage = toast?.textContent || '';
@@ -197,6 +240,15 @@ const mobileViewportQuery = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT}px)`,
 );
 const mobileTouchQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+const supportChatState = {
+  chatId: '',
+  customerDeviceId: '',
+  customerName: '',
+  customerPhone: '',
+  status: 'open',
+  unreadForCustomer: 0,
+  messages: [],
+};
 
 function toShekel(value) {
   return `\u20AA${value}`;
@@ -392,6 +444,597 @@ function showToast(message, timeoutMs = 2000) {
     toast.textContent = defaultToastMessage;
     toastTimeoutId = null;
   }, timeoutMs);
+}
+
+function readSupportChatStorage() {
+  try {
+    const raw = localStorage.getItem(SUPPORT_CHAT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (error) {
+    console.error('Failed to read support chat storage', error);
+    return null;
+  }
+}
+
+function persistSupportChatStorage() {
+  try {
+    localStorage.setItem(
+      SUPPORT_CHAT_STORAGE_KEY,
+      JSON.stringify({
+        chatId: supportChatState.chatId,
+        customerDeviceId: supportChatState.customerDeviceId,
+        customerName: supportChatState.customerName,
+        customerPhone: supportChatState.customerPhone,
+      }),
+    );
+  } catch (error) {
+    console.error('Failed to persist support chat storage', error);
+  }
+}
+
+function clearSupportChatStorage() {
+  try {
+    localStorage.removeItem(SUPPORT_CHAT_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to clear support chat storage', error);
+  }
+}
+
+function createSupportChatDeviceId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ensureSupportChatDeviceId() {
+  if (supportChatState.customerDeviceId) return supportChatState.customerDeviceId;
+  try {
+    const existing = localStorage.getItem(SUPPORT_CHAT_DEVICE_KEY);
+    if (existing) {
+      supportChatState.customerDeviceId = existing;
+      return existing;
+    }
+  } catch (error) {
+    console.error('Failed to read support chat device id', error);
+  }
+
+  const nextDeviceId = createSupportChatDeviceId();
+  supportChatState.customerDeviceId = nextDeviceId;
+  try {
+    localStorage.setItem(SUPPORT_CHAT_DEVICE_KEY, nextDeviceId);
+  } catch (error) {
+    console.error('Failed to persist support chat device id', error);
+  }
+  return nextDeviceId;
+}
+
+function hydrateSupportChatStateFromStorage() {
+  const parsed = readSupportChatStorage();
+  if (!parsed) return;
+  supportChatState.chatId = typeof parsed.chatId === 'string' ? parsed.chatId : '';
+  supportChatState.customerDeviceId =
+    typeof parsed.customerDeviceId === 'string' ? parsed.customerDeviceId : '';
+  supportChatState.customerName =
+    typeof parsed.customerName === 'string' ? parsed.customerName : '';
+  supportChatState.customerPhone =
+    typeof parsed.customerPhone === 'string' ? parsed.customerPhone : '';
+}
+
+function formatSupportChatTimestamp(value) {
+  if (!value) return '--';
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function setSupportChatUnreadBadge(count) {
+  if (!supportChatBadge) return;
+  const unreadCount = Math.max(0, Number(count) || 0);
+  supportChatBadge.hidden = unreadCount <= 0;
+  supportChatBadge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+}
+
+function stopSupportChatListeners() {
+  if (typeof unsubscribeSupportChatDoc === 'function') unsubscribeSupportChatDoc();
+  if (typeof unsubscribeSupportChatMessages === 'function') unsubscribeSupportChatMessages();
+  unsubscribeSupportChatDoc = null;
+  unsubscribeSupportChatMessages = null;
+}
+
+function lockBodyScrollForSupportChat() {
+  if (document.body.classList.contains('support-chat-open')) return;
+  supportChatLockedScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.top = `-${supportChatLockedScrollY}px`;
+  document.body.classList.add('support-chat-open');
+}
+
+function unlockBodyScrollForSupportChat() {
+  if (!document.body.classList.contains('support-chat-open')) return;
+  document.body.classList.remove('support-chat-open');
+  document.body.style.top = '';
+  window.scrollTo(0, supportChatLockedScrollY);
+}
+
+function isSupportChatOpen() {
+  return !!supportChatModal && !supportChatModal.hidden && supportChatModal.classList.contains('show');
+}
+
+function closeSupportChatModal({ restoreFocus = true } = {}) {
+  if (!supportChatModal || !supportChatBackdrop) return;
+  supportChatModal.classList.remove('show');
+  supportChatBackdrop.classList.remove('show');
+  supportChatModal.hidden = true;
+  supportChatBackdrop.hidden = true;
+  unlockBodyScrollForSupportChat();
+  if (restoreFocus && supportChatLastFocused) {
+    supportChatLastFocused.focus({ preventScroll: true });
+  }
+  supportChatLastFocused = null;
+}
+
+function openSupportChatModal() {
+  if (!supportChatModal || !supportChatBackdrop) return;
+  supportChatLastFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  supportChatModal.hidden = false;
+  supportChatBackdrop.hidden = false;
+  requestAnimationFrame(() => {
+    supportChatModal.classList.add('show');
+    supportChatBackdrop.classList.add('show');
+  });
+  lockBodyScrollForSupportChat();
+
+  if (supportChatState.chatId) {
+    if (supportChatThread) supportChatThread.hidden = false;
+    if (supportChatIntro) supportChatIntro.hidden = true;
+    supportChatInput?.focus({ preventScroll: true });
+    markSupportMessagesReadByCustomer();
+  } else {
+    if (supportChatIntro) supportChatIntro.hidden = false;
+    if (supportChatThread) supportChatThread.hidden = true;
+    supportChatNameInput?.focus({ preventScroll: true });
+  }
+}
+
+function setSupportChatError(message = '') {
+  if (!supportChatError) return;
+  supportChatError.textContent = message;
+}
+
+function setSupportChatIntroError(message = '') {
+  if (!supportChatIntroError) return;
+  supportChatIntroError.textContent = message;
+}
+
+function syncSupportChatStatus(status) {
+  if (!supportChatStatusChip) return;
+  const isClosed = status === 'closed';
+  supportChatStatusChip.classList.toggle('closed', isClosed);
+  supportChatStatusChip.classList.toggle('open', !isClosed);
+  supportChatStatusChip.textContent = isClosed ? 'סגור' : 'פתוח';
+  if (supportChatInput) supportChatInput.disabled = isClosed;
+  if (supportChatSendBtn) supportChatSendBtn.disabled = isClosed || supportChatSendInFlight;
+  if (supportChatSubTitle) {
+    supportChatSubTitle.textContent = isClosed
+      ? 'הצ׳אט סגור. אפשר לפתוח שיחה חדשה דרך הטלפון.'
+      : 'מענה חי בזמן אמת';
+  }
+}
+
+function syncSupportChatMeta(chatData = {}) {
+  if (!supportChatMetaText) return;
+  const updatedAtText = formatSupportChatTimestamp(chatData.updatedAt);
+  const shortId = supportChatState.chatId ? supportChatState.chatId.slice(0, 8) : '';
+  supportChatMetaText.textContent = shortId
+    ? `צ׳אט #${shortId} | עודכן: ${updatedAtText}`
+    : '';
+}
+
+function normalizeSupportMessageDoc(messageDoc) {
+  const data = messageDoc.data() || {};
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (!text) return null;
+  const sender = data.sender === 'admin' ? 'admin' : 'customer';
+  return {
+    id: messageDoc.id,
+    ref: messageDoc.ref,
+    text,
+    sender,
+    createdAt: data.createdAt || null,
+    readByAdminAt: data.readByAdminAt || null,
+    readByCustomerAt: data.readByCustomerAt || null,
+  };
+}
+
+function renderSupportChatMessages(messages = supportChatState.messages) {
+  if (!supportChatMessages) return;
+  supportChatMessages.innerHTML = '';
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'support-chat-empty';
+    empty.textContent = 'אין עדיין הודעות. אפשר לשלוח הודעה חדשה.';
+    supportChatMessages.append(empty);
+    return;
+  }
+
+  messages.forEach((message) => {
+    const row = document.createElement('div');
+    row.className = `support-chat-message-row ${message.sender}`;
+    row.innerHTML = `
+      <article class="support-chat-bubble">
+        <p>${escapeHtml(message.text)}</p>
+        <div class="support-chat-bubble-meta">
+          <span>${message.sender === 'admin' ? 'שירות' : 'אתם'}</span>
+          <span>${escapeHtml(formatSupportChatTimestamp(message.createdAt))}</span>
+        </div>
+      </article>
+    `;
+    supportChatMessages.append(row);
+  });
+
+  supportChatMessages.scrollTop = supportChatMessages.scrollHeight;
+}
+
+function updateSupportChatCharCounter() {
+  if (!supportChatInput || !supportChatCharCount) return;
+  const remaining = SUPPORT_CHAT_MAX_CHARS - supportChatInput.value.length;
+  supportChatCharCount.textContent = `נותרו ${remaining} תווים`;
+  supportChatCharCount.classList.toggle('is-limit', remaining <= 30);
+}
+
+async function markSupportMessagesReadByCustomer() {
+  if (supportChatMarkReadInFlight) return;
+  if (!supportChatState.chatId || !db) return;
+
+  const unreadRefs = supportChatState.messages
+    .filter((message) => message.sender === 'admin' && !message.readByCustomerAt && message.ref)
+    .map((message) => message.ref);
+
+  if (unreadRefs.length === 0 && (Number(supportChatState.unreadForCustomer) || 0) <= 0) return;
+
+  supportChatMarkReadInFlight = true;
+  try {
+    const batch = writeBatch(db);
+    unreadRefs.forEach((messageRef) => {
+      batch.update(messageRef, { readByCustomerAt: serverTimestamp() });
+    });
+    batch.update(doc(db, 'chats', supportChatState.chatId), {
+      unreadForCustomer: 0,
+    });
+    await batch.commit();
+    supportChatState.unreadForCustomer = 0;
+    setSupportChatUnreadBadge(0);
+  } catch (error) {
+    console.error('Failed to mark support messages as read for customer', error);
+  } finally {
+    supportChatMarkReadInFlight = false;
+  }
+}
+
+function listenSupportChatDocument() {
+  if (!supportChatState.chatId || !db) return;
+  unsubscribeSupportChatDoc = onSnapshot(
+    doc(db, 'chats', supportChatState.chatId),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        stopSupportChatListeners();
+        supportChatState.chatId = '';
+        supportChatState.status = 'open';
+        supportChatState.messages = [];
+        supportChatState.unreadForCustomer = 0;
+        clearSupportChatStorage();
+        setSupportChatUnreadBadge(0);
+        if (supportChatThread) supportChatThread.hidden = true;
+        if (supportChatIntro) supportChatIntro.hidden = false;
+        setSupportChatIntroError('השיחה הקודמת אינה זמינה יותר. אפשר לפתוח שיחה חדשה.');
+        return;
+      }
+
+      const chatData = snapshot.data() || {};
+      supportChatState.status = chatData.status === 'closed' ? 'closed' : 'open';
+      supportChatState.unreadForCustomer = Number(chatData.unreadForCustomer) || 0;
+      supportChatState.customerName = typeof chatData.customerName === 'string'
+        ? chatData.customerName
+        : supportChatState.customerName;
+      supportChatState.customerPhone = typeof chatData.customerPhone === 'string'
+        ? chatData.customerPhone
+        : supportChatState.customerPhone;
+      persistSupportChatStorage();
+      syncSupportChatStatus(supportChatState.status);
+      syncSupportChatMeta(chatData);
+      setSupportChatUnreadBadge(supportChatState.unreadForCustomer);
+
+      if (isSupportChatOpen() && supportChatState.unreadForCustomer > 0) {
+        markSupportMessagesReadByCustomer();
+      }
+    },
+    (error) => {
+      console.error('Failed to listen to support chat doc', error);
+      setSupportChatError('שגיאה בעדכון מצב הצ׳אט.');
+    },
+  );
+}
+
+function listenSupportChatMessages() {
+  if (!supportChatState.chatId || !db) return;
+  const messagesQuery = query(
+    collection(db, 'chats', supportChatState.chatId, 'messages'),
+    orderBy('createdAt', 'asc'),
+    limit(300),
+  );
+
+  unsubscribeSupportChatMessages = onSnapshot(
+    messagesQuery,
+    (snapshot) => {
+      supportChatState.messages = snapshot.docs
+        .map((messageDoc) => normalizeSupportMessageDoc(messageDoc))
+        .filter(Boolean);
+      renderSupportChatMessages();
+      if (isSupportChatOpen()) {
+        markSupportMessagesReadByCustomer();
+      }
+    },
+    (error) => {
+      console.error('Failed to listen to support chat messages', error);
+      setSupportChatError('שגיאה בטעינת הודעות הצ׳אט.');
+    },
+  );
+}
+
+function startSupportChatRealtime() {
+  stopSupportChatListeners();
+  if (!supportChatState.chatId || !db) return;
+  if (supportChatThread) supportChatThread.hidden = false;
+  if (supportChatIntro) supportChatIntro.hidden = true;
+  listenSupportChatDocument();
+  listenSupportChatMessages();
+}
+
+async function ensureStoredSupportChatIsValid() {
+  hydrateSupportChatStateFromStorage();
+  ensureSupportChatDeviceId();
+  setSupportChatUnreadBadge(0);
+  if (!supportChatState.chatId || !db) return;
+
+  try {
+    const snapshot = await getDoc(doc(db, 'chats', supportChatState.chatId));
+    if (!snapshot.exists()) {
+      supportChatState.chatId = '';
+      supportChatState.messages = [];
+      clearSupportChatStorage();
+      return;
+    }
+    const chatData = snapshot.data() || {};
+    const chatDeviceId = typeof chatData.customerDeviceId === 'string'
+      ? chatData.customerDeviceId
+      : '';
+    if (chatDeviceId && chatDeviceId !== supportChatState.customerDeviceId) {
+      supportChatState.chatId = '';
+      supportChatState.messages = [];
+      clearSupportChatStorage();
+      return;
+    }
+    supportChatState.status = chatData.status === 'closed' ? 'closed' : 'open';
+    supportChatState.unreadForCustomer = Number(chatData.unreadForCustomer) || 0;
+    supportChatState.customerName = typeof chatData.customerName === 'string'
+      ? chatData.customerName
+      : supportChatState.customerName;
+    supportChatState.customerPhone = typeof chatData.customerPhone === 'string'
+      ? chatData.customerPhone
+      : supportChatState.customerPhone;
+    persistSupportChatStorage();
+    setSupportChatUnreadBadge(supportChatState.unreadForCustomer);
+  } catch (error) {
+    console.error('Failed to restore support chat', error);
+    showToast('לא הצלחנו לטעון את שירות הלקוחות כרגע', 2600);
+  }
+}
+
+async function createSupportChat({ customerName, customerPhone }) {
+  if (!db) throw new Error('FIREBASE_UNAVAILABLE');
+  const deviceId = ensureSupportChatDeviceId();
+  const chatsCollection = collection(db, 'chats');
+  const chatRef = doc(chatsCollection);
+
+  await setDoc(chatRef, {
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    status: 'open',
+    customerName,
+    customerPhone,
+    customerDeviceId: deviceId,
+    lastMessage: '',
+    unreadForAdmin: 0,
+    unreadForCustomer: 0,
+  });
+
+  supportChatState.chatId = chatRef.id;
+  supportChatState.customerName = customerName;
+  supportChatState.customerPhone = customerPhone;
+  supportChatState.status = 'open';
+  supportChatState.unreadForCustomer = 0;
+  supportChatState.messages = [];
+  persistSupportChatStorage();
+  return chatRef.id;
+}
+
+async function handleSupportChatStart() {
+  setSupportChatIntroError('');
+  if (!db) {
+    setSupportChatIntroError('שירות הלקוחות לא זמין כרגע. נסו שוב מאוחר יותר.');
+    return;
+  }
+
+  const customerName = String(supportChatNameInput?.value || '').trim();
+  const customerPhone = String(supportChatPhoneInput?.value || '').trim();
+  if (!customerName) {
+    setSupportChatIntroError('יש להזין שם.');
+    return;
+  }
+  if (!isValidIsraeliPhone(customerPhone)) {
+    setSupportChatIntroError('יש להזין מספר טלפון ישראלי תקין.');
+    return;
+  }
+
+  if (!supportChatStartBtn) return;
+  supportChatStartBtn.disabled = true;
+  try {
+    if (!supportChatState.chatId) {
+      await createSupportChat({ customerName, customerPhone });
+    }
+    if (supportChatThread) supportChatThread.hidden = false;
+    if (supportChatIntro) supportChatIntro.hidden = true;
+    syncSupportChatStatus('open');
+    startSupportChatRealtime();
+    setSupportChatError('');
+    supportChatInput?.focus({ preventScroll: true });
+  } catch (error) {
+    console.error('Failed to create support chat', error);
+    setSupportChatIntroError('פתיחת הצ׳אט נכשלה. נסו שוב.');
+  } finally {
+    supportChatStartBtn.disabled = false;
+  }
+}
+
+async function sendSupportChatMessage() {
+  if (supportChatSendInFlight) return;
+  if (!supportChatState.chatId || !db) {
+    setSupportChatError('שירות הלקוחות לא זמין כרגע.');
+    return;
+  }
+
+  const text = String(supportChatInput?.value || '').trim();
+  if (!text) {
+    setSupportChatError('יש להזין הודעה לפני שליחה.');
+    return;
+  }
+  if (text.length > SUPPORT_CHAT_MAX_CHARS) {
+    setSupportChatError(`מקסימום ${SUPPORT_CHAT_MAX_CHARS} תווים.`);
+    return;
+  }
+  if (supportChatState.status === 'closed') {
+    setSupportChatError('הצ׳אט סגור להודעות חדשות.');
+    return;
+  }
+
+  supportChatSendInFlight = true;
+  if (supportChatSendBtn) supportChatSendBtn.disabled = true;
+  setSupportChatError('');
+  try {
+    await addDoc(collection(db, 'chats', supportChatState.chatId, 'messages'), {
+      createdAt: serverTimestamp(),
+      sender: 'customer',
+      text,
+      delivered: true,
+      customerDeviceId: supportChatState.customerDeviceId,
+      readByAdminAt: null,
+      readByCustomerAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, 'chats', supportChatState.chatId), {
+      updatedAt: serverTimestamp(),
+      status: 'open',
+      lastMessage: text.slice(0, 180),
+      unreadForAdmin: increment(1),
+    });
+    if (supportChatInput) {
+      supportChatInput.value = '';
+      updateSupportChatCharCounter();
+    }
+  } catch (error) {
+    console.error('Failed to send support chat message', error);
+    setSupportChatError('שליחה נכשלה, נסו שוב');
+  } finally {
+    supportChatSendInFlight = false;
+    syncSupportChatStatus(supportChatState.status);
+  }
+}
+
+function bindSupportChatUiEvents() {
+  if (!supportChatButton || !supportChatModal || !supportChatBackdrop) return;
+
+  supportChatButton.addEventListener('click', () => {
+    setSupportChatError('');
+    setSupportChatIntroError('');
+    if (cartPanel.classList.contains('open')) {
+      closeMobileCart({ restoreFocus: false });
+    }
+    if (!supportChatState.chatId) {
+      if (supportChatNameInput && !supportChatNameInput.value) {
+        supportChatNameInput.value = state.name || customerNameInput?.value || '';
+      }
+      if (supportChatPhoneInput && !supportChatPhoneInput.value) {
+        supportChatPhoneInput.value = state.phone || customerPhoneInput?.value || '';
+      }
+    }
+    openSupportChatModal();
+  });
+
+  supportChatCloseBtn?.addEventListener('click', () => closeSupportChatModal());
+  supportChatBackdrop.addEventListener('click', () => closeSupportChatModal());
+
+  supportChatStartBtn?.addEventListener('click', () => {
+    handleSupportChatStart();
+  });
+
+  supportChatComposeForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendSupportChatMessage();
+  });
+
+  supportChatInput?.addEventListener('input', () => {
+    if (supportChatInput.value.length > SUPPORT_CHAT_MAX_CHARS) {
+      supportChatInput.value = supportChatInput.value.slice(0, SUPPORT_CHAT_MAX_CHARS);
+    }
+    setSupportChatError('');
+    updateSupportChatCharCounter();
+  });
+
+  supportChatMessages?.addEventListener('click', () => {
+    markSupportMessagesReadByCustomer();
+  });
+  supportChatModal.addEventListener('focusin', () => {
+    markSupportMessagesReadByCustomer();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isSupportChatOpen()) {
+      markSupportMessagesReadByCustomer();
+    }
+  });
+}
+
+async function bootstrapSupportChat() {
+  if (!supportChatButton) return;
+
+  if (!db) {
+    supportChatButton.disabled = true;
+    supportChatButton.title = 'שירות הלקוחות לא זמין כרגע';
+    return;
+  }
+
+  ensureSupportChatDeviceId();
+  updateSupportChatCharCounter();
+  await ensureStoredSupportChatIsValid();
+  if (supportChatNameInput && !supportChatNameInput.value) {
+    supportChatNameInput.value = supportChatState.customerName || state.name || '';
+  }
+  if (supportChatPhoneInput && !supportChatPhoneInput.value) {
+    supportChatPhoneInput.value = supportChatState.customerPhone || state.phone || '';
+  }
+  syncSupportChatStatus(supportChatState.status);
+  syncSupportChatMeta();
+  setSupportChatUnreadBadge(supportChatState.unreadForCustomer);
+  if (supportChatState.chatId) {
+    startSupportChatRealtime();
+  }
 }
 
 function parseItemData(node) {
@@ -2590,6 +3233,10 @@ function bindFormEvents() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && cartPanel.classList.contains('open')) {
       closeMobileCart();
+      return;
+    }
+    if (event.key === 'Escape' && isSupportChatOpen()) {
+      closeSupportChatModal();
     }
   });
 
@@ -2623,6 +3270,11 @@ function init() {
   buildConfirmModal();
   buildResetAllModal();
   buildDrinkChangeModal();
+  bindSupportChatUiEvents();
+  bootstrapSupportChat().catch((error) => {
+    console.error('Failed to bootstrap support chat', error);
+    if (supportChatButton) supportChatButton.disabled = true;
+  });
   initItems();
   initStyledSelect(pickupSelect);
   restoreInputs();
@@ -2638,6 +3290,9 @@ function init() {
   bindFormEvents();
   renderCart();
   initExistingInteractions();
+  window.addEventListener('beforeunload', () => {
+    stopSupportChatListeners();
+  });
   saveState();
 }
 
