@@ -184,6 +184,8 @@ const ui = {
 };
 
 let customSelectGlobalBound = false;
+let nativeSelectGlobalBound = false;
+let nativeSelectIdCounter = 0;
 let toastTimeoutId = null;
 let mobileCartLockedScrollY = 0;
 let lastFocusedBeforeMobileCart = null;
@@ -539,6 +541,343 @@ function createLineId() {
 
 function menuNodeById(itemId) {
   return document.querySelector(`#menu [data-item-id="${itemId}"]`);
+}
+
+function nextNativeSelectId(prefix = 'select') {
+  nativeSelectIdCounter += 1;
+  return `${prefix}-${nativeSelectIdCounter}`;
+}
+
+function closeStyledSelectByRoot(root, focusTrigger = false) {
+  if (!root) return;
+  const trigger = root.querySelector('.select-trigger');
+  const panel = root.querySelector('.select-panel');
+  root.classList.remove('is-open');
+  if (panel) panel.hidden = true;
+  if (trigger) {
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.removeAttribute('aria-activedescendant');
+    if (focusTrigger) trigger.focus();
+  }
+}
+
+function closeAllStyledSelects(exceptRoot = null) {
+  document.querySelectorAll('.select-wrap.is-open').forEach((root) => {
+    if (root !== exceptRoot) closeStyledSelectByRoot(root);
+  });
+}
+
+function resolveStyledSelectIndex(selectNode) {
+  const selectedIndex = selectNode.selectedIndex;
+  if (selectedIndex >= 0) return selectedIndex;
+  const value = selectNode.value;
+  if (!value) return -1;
+  return Array.from(selectNode.options).findIndex((option) => option.value === value);
+}
+
+function firstEnabledStyledOption(optionNodes) {
+  return optionNodes.findIndex((node) => !node.disabled);
+}
+
+function setStyledSelectActiveIndex(selectNode, nextIndex) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root) return;
+
+  const trigger = root.querySelector('.select-trigger');
+  const optionNodes = Array.from(root.querySelectorAll('.select-option'));
+  if (optionNodes.length === 0) return;
+
+  let index = Number.isInteger(nextIndex) ? nextIndex : Number(nextIndex);
+  if (Number.isNaN(index)) index = 0;
+  index = Math.max(0, Math.min(index, optionNodes.length - 1));
+
+  if (optionNodes[index]?.disabled) {
+    const fallback = firstEnabledStyledOption(optionNodes);
+    if (fallback < 0) return;
+    index = fallback;
+  }
+
+  optionNodes.forEach((node, optionIndex) => {
+    node.classList.toggle('select-option--active', optionIndex === index);
+  });
+
+  const activeNode = optionNodes[index];
+  if (activeNode?.id && trigger) {
+    trigger.setAttribute('aria-activedescendant', activeNode.id);
+    activeNode.scrollIntoView({ block: 'nearest' });
+  }
+  root.dataset.activeIndex = String(index);
+}
+
+function syncStyledSelect(selectNode) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root) return;
+
+  const trigger = root.querySelector('.select-trigger');
+  const labelNode = root.querySelector('.select-trigger-label');
+  const panel = root.querySelector('.select-panel');
+  const optionNodes = Array.from(root.querySelectorAll('.select-option'));
+  if (!trigger || !labelNode || !panel) return;
+
+  const selectedIndex = resolveStyledSelectIndex(selectNode);
+  const safeSelectedIndex =
+    selectedIndex >= 0 && selectedIndex < optionNodes.length ? selectedIndex : -1;
+  const selectedNode =
+    safeSelectedIndex >= 0 ? optionNodes[safeSelectedIndex] : null;
+  const selectedLabel = selectedNode?.textContent?.trim() || '';
+
+  labelNode.textContent = selectedLabel;
+  optionNodes.forEach((node, index) => {
+    const isSelected = index === safeSelectedIndex;
+    node.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+  });
+
+  const canInteract = !selectNode.disabled && optionNodes.length > 0;
+  trigger.disabled = !canInteract;
+  root.classList.toggle('is-disabled', !canInteract);
+  if (!canInteract) closeStyledSelectByRoot(root);
+
+  const currentActive = Number(root.dataset.activeIndex);
+  if (
+    Number.isNaN(currentActive) ||
+    currentActive < 0 ||
+    currentActive >= optionNodes.length ||
+    optionNodes[currentActive]?.disabled
+  ) {
+    const fallbackIndex =
+      safeSelectedIndex >= 0 && !optionNodes[safeSelectedIndex]?.disabled
+        ? safeSelectedIndex
+        : firstEnabledStyledOption(optionNodes);
+    if (fallbackIndex >= 0) {
+      setStyledSelectActiveIndex(selectNode, fallbackIndex);
+    }
+  } else {
+    setStyledSelectActiveIndex(selectNode, currentActive);
+  }
+}
+
+function rebuildStyledSelectOptions(selectNode) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root) return;
+
+  const trigger = root.querySelector('.select-trigger');
+  const panel = root.querySelector('.select-panel');
+  if (!trigger || !panel) return;
+
+  const selectId = selectNode.id || nextNativeSelectId('native-select');
+  if (!selectNode.id) selectNode.id = selectId;
+
+  const triggerId = `${selectId}-trigger`;
+  const panelId = `${selectId}-panel`;
+  trigger.id = triggerId;
+  panel.id = panelId;
+  trigger.setAttribute('aria-controls', panelId);
+  panel.setAttribute('aria-labelledby', triggerId);
+
+  panel.innerHTML = '';
+  Array.from(selectNode.options).forEach((option, index) => {
+    const optionNode = document.createElement('button');
+    optionNode.type = 'button';
+    optionNode.className = 'select-option';
+    optionNode.id = `${panelId}-opt-${index}`;
+    optionNode.dataset.index = String(index);
+    optionNode.dataset.value = option.value;
+    optionNode.setAttribute('role', 'option');
+    optionNode.setAttribute('aria-selected', 'false');
+    optionNode.textContent = option.textContent || '';
+    if (option.disabled) {
+      optionNode.disabled = true;
+      optionNode.setAttribute('aria-disabled', 'true');
+    }
+    panel.append(optionNode);
+  });
+
+  syncStyledSelect(selectNode);
+}
+
+function moveStyledSelectActiveIndex(selectNode, direction) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root) return;
+  const optionNodes = Array.from(root.querySelectorAll('.select-option'));
+  if (optionNodes.length === 0) return;
+
+  let index = Number(root.dataset.activeIndex);
+  if (Number.isNaN(index)) {
+    const selectedIndex = resolveStyledSelectIndex(selectNode);
+    index = selectedIndex >= 0 ? selectedIndex : firstEnabledStyledOption(optionNodes);
+  }
+
+  const step = direction >= 0 ? 1 : -1;
+  let cursor = index;
+  while (cursor >= 0 && cursor < optionNodes.length) {
+    cursor += step;
+    if (cursor < 0 || cursor >= optionNodes.length) break;
+    if (!optionNodes[cursor]?.disabled) {
+      setStyledSelectActiveIndex(selectNode, cursor);
+      break;
+    }
+  }
+}
+
+function openStyledSelect(selectNode) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root || root.classList.contains('is-disabled')) return;
+  const trigger = root.querySelector('.select-trigger');
+  const panel = root.querySelector('.select-panel');
+  if (!trigger || !panel) return;
+
+  closeAllStyledSelects(root);
+  root.classList.add('is-open');
+  panel.hidden = false;
+  trigger.setAttribute('aria-expanded', 'true');
+
+  const selectedIndex = resolveStyledSelectIndex(selectNode);
+  const optionNodes = Array.from(root.querySelectorAll('.select-option'));
+  const preferredIndex =
+    selectedIndex >= 0 && !optionNodes[selectedIndex]?.disabled
+      ? selectedIndex
+      : firstEnabledStyledOption(optionNodes);
+  if (preferredIndex >= 0) setStyledSelectActiveIndex(selectNode, preferredIndex);
+}
+
+function selectStyledOptionByIndex(selectNode, optionIndex) {
+  const root = selectNode?._styledSelectRoot;
+  if (!root) return;
+  const optionNodes = Array.from(root.querySelectorAll('.select-option'));
+  const optionNode = optionNodes[optionIndex];
+  if (!optionNode || optionNode.disabled) return;
+
+  const nextValue = optionNode.dataset.value ?? '';
+  const changed = selectNode.value !== nextValue;
+  selectNode.value = nextValue;
+  if (changed) {
+    selectNode.dispatchEvent(new Event('change', { bubbles: true }));
+  } else {
+    syncStyledSelect(selectNode);
+  }
+
+  closeStyledSelectByRoot(root, true);
+}
+
+function initStyledSelect(selectNode) {
+  if (!selectNode || selectNode.dataset.nativeStyledSelectReady === 'true') return;
+
+  const root = document.createElement('div');
+  root.className = 'select-wrap';
+  root.setAttribute('dir', 'rtl');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'select-trigger';
+  trigger.setAttribute('role', 'combobox');
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.innerHTML = '<span class="select-trigger-label"></span>';
+
+  const panel = document.createElement('div');
+  panel.className = 'select-panel';
+  panel.setAttribute('role', 'listbox');
+  panel.hidden = true;
+
+  root.append(trigger, panel);
+  selectNode.insertAdjacentElement('afterend', root);
+  selectNode.classList.add('select-native-hidden');
+  selectNode.dataset.nativeStyledSelectReady = 'true';
+  selectNode._styledSelectRoot = root;
+
+  trigger.addEventListener('click', () => {
+    if (root.classList.contains('is-open')) {
+      closeStyledSelectByRoot(root);
+    } else {
+      openStyledSelect(selectNode);
+    }
+  });
+
+  trigger.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab') {
+      closeStyledSelectByRoot(root);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeStyledSelectByRoot(root, true);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!root.classList.contains('is-open')) {
+        openStyledSelect(selectNode);
+      } else {
+        moveStyledSelectActiveIndex(selectNode, 1);
+      }
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!root.classList.contains('is-open')) {
+        openStyledSelect(selectNode);
+      } else {
+        moveStyledSelectActiveIndex(selectNode, -1);
+      }
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      if (!root.classList.contains('is-open')) {
+        openStyledSelect(selectNode);
+      } else {
+        const activeIndex = Number(root.dataset.activeIndex);
+        selectStyledOptionByIndex(selectNode, activeIndex);
+      }
+    }
+  });
+
+  panel.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+  });
+
+  panel.addEventListener('mousemove', (event) => {
+    const optionNode = event.target.closest('.select-option');
+    if (!optionNode || optionNode.disabled) return;
+    const optionIndex = Number(optionNode.dataset.index);
+    if (!Number.isNaN(optionIndex)) setStyledSelectActiveIndex(selectNode, optionIndex);
+  });
+
+  panel.addEventListener('click', (event) => {
+    const optionNode = event.target.closest('.select-option');
+    if (!optionNode || optionNode.disabled) return;
+    const optionIndex = Number(optionNode.dataset.index);
+    if (!Number.isNaN(optionIndex)) {
+      selectStyledOptionByIndex(selectNode, optionIndex);
+    }
+  });
+
+  selectNode.addEventListener('change', () => {
+    syncStyledSelect(selectNode);
+  });
+
+  if (!nativeSelectGlobalBound) {
+    nativeSelectGlobalBound = true;
+
+    document.addEventListener('click', (event) => {
+      document.querySelectorAll('.select-wrap.is-open').forEach((node) => {
+        if (!node.contains(event.target)) closeStyledSelectByRoot(node);
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      document.querySelectorAll('.select-wrap.is-open').forEach((node) => {
+        closeStyledSelectByRoot(node);
+      });
+    });
+  }
+
+  rebuildStyledSelectOptions(selectNode);
 }
 
 function customSelectMarkup({ id, inputClass, options, value }) {
@@ -991,6 +1330,7 @@ function cancelPendingDrinkTypeChange() {
   const pending = ui.drinkChangeModal.pending;
   if (pending?.selectNode) {
     pending.selectNode.value = pending.previousType || '';
+    syncStyledSelect(pending.selectNode);
   }
   ui.drinkChangeModal.pending = null;
   if (ui.drinkChangeModal.modal) closeModal(ui.drinkChangeModal.modal);
@@ -1062,6 +1402,7 @@ function buildDrinkTypeSelector(item) {
   const selectNode = wrapper.querySelector('.drink-type-select');
   const current = sanitizeDrinkType(state.lastDrinkType[item.id] || '');
   selectNode.value = current || '';
+  initStyledSelect(selectNode);
 
   selectNode.addEventListener('change', () => {
     handleDrinkTypeSelectionChange(item.id, selectNode);
@@ -1508,6 +1849,7 @@ function resetMenuSelectionsToDefault() {
       });
     menuRoot.querySelectorAll('select').forEach((select) => {
       select.selectedIndex = 0;
+      syncStyledSelect(select);
     });
   }
 
@@ -1521,7 +1863,10 @@ function resetMenuSelectionsToDefault() {
     if (item.isDrink) {
       state.lastDrinkType[item.id] = '';
       const select = menuNodeById(item.id)?.querySelector('.drink-type-select');
-      if (select) select.value = '';
+      if (select) {
+        select.value = '';
+        syncStyledSelect(select);
+      }
       clearDrinkError(item.id);
     }
     updateMenuItemPrice(item.id);
@@ -1689,6 +2034,7 @@ function refreshPickupOptions() {
     pickupHint.textContent = CLOSED_ORDERING_MESSAGE;
   }
 
+  rebuildStyledSelectOptions(pickupSelect);
   sendOrderButton.disabled = !canCheckout;
   saveState();
 }
@@ -2278,6 +2624,7 @@ function init() {
   buildResetAllModal();
   buildDrinkChangeModal();
   initItems();
+  initStyledSelect(pickupSelect);
   restoreInputs();
   refreshPickupOptions();
   syncViewportUi();

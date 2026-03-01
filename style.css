@@ -891,6 +891,128 @@ select::-ms-expand {
   display: none;
 }
 
+.select-native-hidden {
+  display: none !important;
+}
+
+.select-wrap {
+  position: relative;
+  width: 100%;
+  direction: rtl;
+  text-align: right;
+}
+
+.select-trigger {
+  width: 100%;
+  min-height: 2.6rem;
+  border-radius: 999px;
+  border: 1px solid #dfcbb6;
+  background: #fff8f1;
+  color: #44352a;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0.65rem 2.5rem 0.65rem 0.95rem;
+  text-align: right;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 8px 18px rgba(64, 45, 29, 0.08);
+}
+
+.select-trigger::after {
+  content: '';
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid #7a624d;
+  border-bottom: 2px solid #7a624d;
+  transform: translateY(-60%) rotate(45deg);
+  transition: transform 0.18s ease;
+  pointer-events: none;
+}
+
+.select-wrap.is-open .select-trigger::after {
+  transform: translateY(-38%) rotate(-135deg);
+}
+
+.select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: var(--focus);
+}
+
+.select-wrap.is-open .select-trigger {
+  border-color: var(--accent-2);
+}
+
+.select-wrap.is-disabled .select-trigger {
+  opacity: 0.7;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.select-trigger-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding: 0.35rem;
+  border-radius: 14px;
+  border: 1px solid #dfcbb6;
+  background: #fff8f1;
+  box-shadow: 0 16px 28px rgba(52, 35, 22, 0.18);
+  z-index: 2147483641;
+  max-height: min(18rem, 45vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.select-panel[hidden] {
+  display: none;
+}
+
+.select-option {
+  width: 100%;
+  display: block;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.96rem;
+  text-align: right;
+  border-radius: 10px;
+  padding: 0.62rem 0.75rem;
+  cursor: pointer;
+}
+
+.select-option:hover,
+.select-option:focus-visible,
+.select-option--active {
+  background: #f2e2d1;
+  color: var(--accent);
+}
+
+.select-option[aria-selected='true'] {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.select-option:disabled {
+  color: #a39488;
+  cursor: not-allowed;
+  background: transparent;
+}
+
 .order-form textarea {
   min-height: 80px;
   resize: vertical;
