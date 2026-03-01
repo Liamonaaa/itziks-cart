@@ -36,6 +36,14 @@ const STORAGE_KEY = 'itziks-cart-order-v2';
 const LAST_ORDER_ID_KEY = 'itziks-cart-last-order-id';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
+const DRINK_UPSELL_ITEM_ID = 'drink-can';
+const DRINK_UPSELL_PRESET_OPTIONS = [
+  { label: 'קולה', candidates: ['קוקה קולה', 'קולה'] },
+  { label: 'קולה זירו', candidates: ['קוקה קולה זירו', 'קולה זירו'] },
+  { label: 'ספרייט', candidates: ['ספרייט'] },
+  { label: 'פנטה', candidates: ['פאנטה תפוזים', 'פנטה', 'פאנטה'] },
+  { label: 'מים', candidates: ['מים מינרליים', 'מים'] },
+];
 const ORDERING_HOURS_LABEL = 'פתוח 24/7';
 const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות 24/7';
 
@@ -180,6 +188,12 @@ const supportChatInput = document.getElementById('supportChatInput');
 const supportChatCharCount = document.getElementById('supportChatCharCount');
 const supportChatSendBtn = document.getElementById('supportChatSendBtn');
 const supportChatError = document.getElementById('supportChatError');
+const drinkUpsellBanner = document.getElementById('drinkUpsellBanner');
+const drinkUpsellAddBtn = document.getElementById('drinkUpsellAddBtn');
+const drinkUpsellDismissBtn = document.getElementById('drinkUpsellDismissBtn');
+const drinkUpsellModal = document.getElementById('drinkUpsellModal');
+const drinkUpsellModalCloseBtn = document.getElementById('drinkUpsellModalCloseBtn');
+const drinkUpsellOptions = document.getElementById('drinkUpsellOptions');
 
 const state = {
   cartLines: [],
@@ -232,6 +246,7 @@ let supportChatSendInFlight = false;
 let supportChatMarkReadInFlight = false;
 let unsubscribeSupportChatDoc = null;
 let unsubscribeSupportChatMessages = null;
+let drinkUpsellDismissedForSession = false;
 let buildVersionMarker = null;
 const BUILD_VERSION = '20260228-16';
 const defaultToastMessage = toast?.textContent || '';
@@ -1035,6 +1050,181 @@ async function bootstrapSupportChat() {
   if (supportChatState.chatId) {
     startSupportChatRealtime();
   }
+}
+
+function hasDrinkInCart(lines = state.cartLines) {
+  return Array.isArray(lines)
+    && lines.some((line) => (
+      isDrinkItem(line.itemId)
+      || line.category === 'drink'
+      || line.category === DRINK_CATEGORY_LABEL
+      || line.isDrink === true
+    ));
+}
+
+function closeDrinkUpsellModal() {
+  if (!drinkUpsellModal) return;
+  closeModal(drinkUpsellModal);
+}
+
+function normalizeDrinkCandidate(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function resolveDrinkUpsellOptions() {
+  const picked = [];
+  const usedValues = new Set();
+
+  DRINK_UPSELL_PRESET_OPTIONS.forEach((preset) => {
+    const match = DRINK_TYPE_OPTIONS.find((option) => {
+      if (!option || usedValues.has(option)) return false;
+      const optionNormalized = normalizeDrinkCandidate(option);
+      return preset.candidates.some((candidate) => {
+        const candidateNormalized = normalizeDrinkCandidate(candidate);
+        return (
+          optionNormalized === candidateNormalized
+          || optionNormalized.includes(candidateNormalized)
+          || candidateNormalized.includes(optionNormalized)
+        );
+      });
+    });
+
+    if (match) {
+      usedValues.add(match);
+      picked.push({ label: preset.label, value: match });
+    }
+  });
+
+  if (picked.length < DRINK_UPSELL_PRESET_OPTIONS.length) {
+    DRINK_TYPE_OPTIONS.forEach((option) => {
+      if (!option || usedValues.has(option)) return;
+      usedValues.add(option);
+      picked.push({ label: option, value: option });
+    });
+  }
+
+  return picked.slice(0, DRINK_UPSELL_PRESET_OPTIONS.length);
+}
+
+function renderDrinkUpsellOptions() {
+  if (!drinkUpsellOptions) return;
+  const options = resolveDrinkUpsellOptions();
+  drinkUpsellOptions.innerHTML = '';
+
+  options.forEach((option) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'drink-picker-option';
+    button.dataset.drinkType = option.value;
+    button.textContent = option.label;
+    button.addEventListener('click', () => {
+      addDrinkFromUpsell(option.value);
+    });
+    drinkUpsellOptions.append(button);
+  });
+}
+
+function syncDrinkUpsellVisibility(lines = state.cartLines) {
+  if (!drinkUpsellBanner) return;
+  if (hasDrinkInCart(lines)) {
+    drinkUpsellBanner.hidden = true;
+    drinkUpsellDismissedForSession = false;
+    return;
+  }
+  if (drinkUpsellDismissedForSession) {
+    drinkUpsellBanner.hidden = true;
+    return;
+  }
+  drinkUpsellBanner.hidden = false;
+}
+
+function openDrinkUpsellModal() {
+  if (!drinkUpsellModal) return;
+  if (hasDrinkInCart()) {
+    syncDrinkUpsellVisibility();
+    return;
+  }
+  renderDrinkUpsellOptions();
+  openModal(drinkUpsellModal);
+}
+
+function addDrinkFromUpsell(drinkType) {
+  const safeDrinkType = sanitizeDrinkType(drinkType);
+  if (!safeDrinkType) {
+    showToast('השתייה שבחרתם לא זמינה כרגע', 1800);
+    closeDrinkUpsellModal();
+    return;
+  }
+
+  if (hasDrinkInCart()) {
+    showToast('כבר יש שתייה בעגלה', 1600);
+    closeDrinkUpsellModal();
+    syncDrinkUpsellVisibility();
+    return;
+  }
+
+  const itemId = DRINK_UPSELL_ITEM_ID;
+  const drinkMenuSelect = menuNodeById(itemId)?.querySelector('.drink-type-select');
+  if (drinkMenuSelect) {
+    drinkMenuSelect.value = safeDrinkType;
+    syncStyledSelect(drinkMenuSelect);
+    clearDrinkError(itemId);
+  }
+  state.lastDrinkType[itemId] = safeDrinkType;
+  if (drinkMenuSelect) {
+    addItemFromMenu(itemId);
+  } else {
+    const item = itemsById.get(itemId);
+    if (!item) {
+      showToast('לא הצלחנו להוסיף שתייה כרגע', 1800);
+      closeDrinkUpsellModal();
+      return;
+    }
+    const existing = findMatchingEditableLine(itemId, null, safeDrinkType);
+    const displayName = `${item.name} — ${safeDrinkType}`;
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      state.cartLines.push({
+        lineId: createLineId(),
+        itemId: item.id,
+        name: displayName,
+        baseName: item.name,
+        displayName,
+        category: DRINK_CATEGORY_LABEL,
+        drinkType: safeDrinkType,
+        basePrice: item.price,
+        quantity: 1,
+        options: null,
+        note: '',
+      });
+    }
+    saveState();
+    renderCart();
+  }
+  closeDrinkUpsellModal();
+  showToast('נוספה שתייה לעגלה', 1700);
+}
+
+function bindDrinkUpsellEvents() {
+  if (!drinkUpsellBanner) return;
+
+  drinkUpsellAddBtn?.addEventListener('click', () => {
+    openDrinkUpsellModal();
+  });
+
+  drinkUpsellDismissBtn?.addEventListener('click', () => {
+    drinkUpsellDismissedForSession = true;
+    syncDrinkUpsellVisibility();
+  });
+
+  drinkUpsellModalCloseBtn?.addEventListener('click', closeDrinkUpsellModal);
+  drinkUpsellModal?.addEventListener('click', (event) => {
+    if (event.target === drinkUpsellModal) closeDrinkUpsellModal();
+  });
 }
 
 function parseItemData(node) {
@@ -2348,6 +2538,7 @@ function renderCart() {
 
   cartItemsElement.innerHTML = '';
   cartEmptyElement.style.display = entries.length === 0 ? 'block' : 'none';
+  syncDrinkUpsellVisibility(entries);
 
   entries.forEach((entry) => {
     const unitPrice = lineUnitPrice(entry);
@@ -3237,6 +3428,10 @@ function bindFormEvents() {
     }
     if (event.key === 'Escape' && isSupportChatOpen()) {
       closeSupportChatModal();
+      return;
+    }
+    if (event.key === 'Escape' && drinkUpsellModal && !drinkUpsellModal.hidden) {
+      closeDrinkUpsellModal();
     }
   });
 
@@ -3270,6 +3465,7 @@ function init() {
   buildConfirmModal();
   buildResetAllModal();
   buildDrinkChangeModal();
+  bindDrinkUpsellEvents();
   bindSupportChatUiEvents();
   bootstrapSupportChat().catch((error) => {
     console.error('Failed to bootstrap support chat', error);

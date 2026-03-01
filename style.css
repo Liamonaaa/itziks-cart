@@ -1410,6 +1410,114 @@ select::-ms-expand {
   display: none;
 }
 
+.drink-upsell-banner {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid #e8d1ba;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fff8ef, #f9ecdd);
+  padding: 0.7rem 0.75rem 0.75rem;
+}
+
+.drink-upsell-title {
+  margin: 0;
+  color: #5f4227;
+  font-weight: 700;
+  font-size: 0.97rem;
+}
+
+.drink-upsell-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.drink-upsell-banner .btn {
+  justify-self: start;
+  min-height: 2.35rem;
+}
+
+.drink-upsell-close {
+  position: absolute;
+  top: 0.45rem;
+  left: 0.45rem;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid #dfcbb6;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drink-upsell-close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
+.drink-picker-modal {
+  z-index: 76;
+}
+
+.drink-picker-card {
+  width: min(420px, 92vw);
+}
+
+.drink-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.drink-picker-head h3 {
+  margin: 0;
+}
+
+.drink-picker-close {
+  width: 1.95rem;
+  height: 1.95rem;
+  border: 1px solid #dfcbb6;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 1.12rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drink-picker-options {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.drink-picker-option {
+  width: 100%;
+  border: 1px solid #dfcbb6;
+  border-radius: 12px;
+  background: #fff8f1;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-align: right;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+}
+
+.drink-picker-option:hover {
+  border-color: #cfb08f;
+  background: #f7ebdf;
+}
+
+.drink-picker-option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+
 .btn[disabled],
 .qty-btn[disabled] {
   opacity: 0.55;
@@ -1770,6 +1878,16 @@ body.support-chat-open {
   .support-chat-compose-foot {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .drink-upsell-banner .btn {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .drink-picker-option {
+    min-height: 44px;
+    font-size: 0.95rem;
   }
 
   .checks-wrap {
