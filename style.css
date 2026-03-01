@@ -1410,75 +1410,21 @@ select::-ms-expand {
   display: none;
 }
 
-.drink-upsell-banner {
-  position: relative;
-  display: grid;
-  gap: 0.45rem;
-  border: 1px solid #e8d1ba;
-  border-radius: 14px;
-  background: linear-gradient(145deg, #fff8ef, #f9ecdd);
-  padding: 0.7rem 0.75rem 0.75rem;
-}
-
-.drink-upsell-title {
-  margin: 0;
-  color: #5f4227;
-  font-weight: 700;
-  font-size: 0.97rem;
-}
-
-.drink-upsell-subtitle {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.drink-upsell-banner .btn {
-  justify-self: start;
-  min-height: 2.35rem;
-}
-
-.drink-upsell-close {
-  position: absolute;
-  top: 0.45rem;
-  left: 0.45rem;
-  width: 1.65rem;
-  height: 1.65rem;
-  border: 1px solid #dfcbb6;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.drink-upsell-close:focus-visible {
-  outline: none;
-  box-shadow: var(--focus);
-}
-
-.drink-picker-modal {
+.drink-submit-modal {
   z-index: 76;
 }
 
-.drink-picker-card {
-  width: min(420px, 92vw);
+.drink-submit-card {
+  width: min(460px, 92vw);
+  position: relative;
+  border: 1px solid #e6d3be;
+  background: #fffaf3;
 }
 
-.drink-picker-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-bottom: 0.65rem;
-}
-
-.drink-picker-head h3 {
-  margin: 0;
-}
-
-.drink-picker-close {
+.drink-submit-close {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
   width: 1.95rem;
   height: 1.95rem;
   border: 1px solid #dfcbb6;
@@ -1490,30 +1436,49 @@ select::-ms-expand {
   cursor: pointer;
 }
 
-.drink-picker-options {
-  display: grid;
-  gap: 0.45rem;
+.drink-submit-close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
 }
 
-.drink-picker-option {
+.drink-submit-body {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.drink-submit-actions {
+  margin-top: 1rem;
+}
+
+.drink-submit-options {
+  display: grid;
+  gap: 0.5rem;
+  max-height: min(46vh, 300px);
+  overflow-y: auto;
+  margin-top: 0.85rem;
+  padding-left: 0.1rem;
+}
+
+.drink-submit-option {
   width: 100%;
   border: 1px solid #dfcbb6;
   border-radius: 12px;
-  background: #fff8f1;
+  background: #fff3e5;
   color: var(--text);
   font: inherit;
   font-weight: 500;
   text-align: right;
-  padding: 0.6rem 0.75rem;
+  padding: 0.7rem 0.8rem;
   cursor: pointer;
 }
 
-.drink-picker-option:hover {
+.drink-submit-option:hover {
   border-color: #cfb08f;
-  background: #f7ebdf;
+  background: #f8ecdf;
 }
 
-.drink-picker-option:focus-visible {
+.drink-submit-option:focus-visible {
   outline: none;
   box-shadow: var(--focus);
 }
@@ -1880,14 +1845,19 @@ body.support-chat-open {
     align-items: stretch;
   }
 
-  .drink-upsell-banner .btn {
+  .drink-submit-actions .btn {
     width: 100%;
-    justify-self: stretch;
+    justify-content: center;
   }
 
-  .drink-picker-option {
+  .drink-submit-option {
     min-height: 44px;
-    font-size: 0.95rem;
+    font-size: 0.96rem;
+  }
+
+  .drink-submit-card {
+    width: min(460px, calc(100vw - 0.8rem));
+    max-height: min(90vh, calc(100dvh - 1rem));
   }
 
   .checks-wrap {

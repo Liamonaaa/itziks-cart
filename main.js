@@ -37,13 +37,30 @@ const LAST_ORDER_ID_KEY = 'itziks-cart-last-order-id';
 const SLOT_STEP_MINUTES = 15;
 const PREP_TIME_MINUTES = 15;
 const DRINK_UPSELL_ITEM_ID = 'drink-can';
-const DRINK_UPSELL_PRESET_OPTIONS = [
+const PRE_SUBMIT_DRINK_CHOICES = [
   { label: 'קולה', candidates: ['קוקה קולה', 'קולה'] },
   { label: 'קולה זירו', candidates: ['קוקה קולה זירו', 'קולה זירו'] },
   { label: 'ספרייט', candidates: ['ספרייט'] },
   { label: 'פנטה', candidates: ['פאנטה תפוזים', 'פנטה', 'פאנטה'] },
   { label: 'מים', candidates: ['מים מינרליים', 'מים'] },
 ];
+const DRINK_NAME_KEYWORDS = [
+  'שתייה',
+  'שתיה',
+  'קולה',
+  'זירו',
+  'ספרייט',
+  'פנטה',
+  'פאנטה',
+  'מים',
+  'cola',
+  'sprite',
+  'fanta',
+  'water',
+  'drink',
+  'soda',
+];
+const IS_DEV = /(^localhost$)|(^127\.)|(^0\.0\.0\.0$)/.test(window.location.hostname);
 const ORDERING_HOURS_LABEL = 'פתוח 24/7';
 const CLOSED_ORDERING_MESSAGE = 'ההזמנות זמינות 24/7';
 
@@ -162,6 +179,7 @@ const pickupHint = document.getElementById('pickupHint');
 const customerNameInput = document.getElementById('customerName');
 const customerPhoneInput = document.getElementById('customerPhone');
 const customerNotesInput = document.getElementById('customerNotes');
+const orderFormElement = document.getElementById('orderForm');
 const formErrorElement = document.getElementById('formError');
 const lastOrderLink = document.getElementById('lastOrderLink');
 
@@ -188,12 +206,6 @@ const supportChatInput = document.getElementById('supportChatInput');
 const supportChatCharCount = document.getElementById('supportChatCharCount');
 const supportChatSendBtn = document.getElementById('supportChatSendBtn');
 const supportChatError = document.getElementById('supportChatError');
-const drinkUpsellBanner = document.getElementById('drinkUpsellBanner');
-const drinkUpsellAddBtn = document.getElementById('drinkUpsellAddBtn');
-const drinkUpsellDismissBtn = document.getElementById('drinkUpsellDismissBtn');
-const drinkUpsellModal = document.getElementById('drinkUpsellModal');
-const drinkUpsellModalCloseBtn = document.getElementById('drinkUpsellModalCloseBtn');
-const drinkUpsellOptions = document.getElementById('drinkUpsellOptions');
 
 const state = {
   cartLines: [],
@@ -232,6 +244,18 @@ const ui = {
     confirmButton: null,
     pending: null,
   },
+  drinkSubmitModal: {
+    modal: null,
+    closeButton: null,
+    yesButton: null,
+    noButton: null,
+    backButton: null,
+    promptStep: null,
+    chooserStep: null,
+    optionsRoot: null,
+    resolver: null,
+    lastFocused: null,
+  },
 };
 
 let customSelectGlobalBound = false;
@@ -246,7 +270,7 @@ let supportChatSendInFlight = false;
 let supportChatMarkReadInFlight = false;
 let unsubscribeSupportChatDoc = null;
 let unsubscribeSupportChatMessages = null;
-let drinkUpsellDismissedForSession = false;
+let orderSubmitIntentInFlight = false;
 let buildVersionMarker = null;
 const BUILD_VERSION = '20260228-16';
 const defaultToastMessage = toast?.textContent || '';
@@ -1052,19 +1076,13 @@ async function bootstrapSupportChat() {
   }
 }
 
-function hasDrinkInCart(lines = state.cartLines) {
-  return Array.isArray(lines)
-    && lines.some((line) => (
-      isDrinkItem(line.itemId)
-      || line.category === 'drink'
-      || line.category === DRINK_CATEGORY_LABEL
-      || line.isDrink === true
-    ));
-}
-
-function closeDrinkUpsellModal() {
-  if (!drinkUpsellModal) return;
-  closeModal(drinkUpsellModal);
+function devLog(message, details = null) {
+  if (!IS_DEV) return;
+  if (details) {
+    console.log(`[drink submit] ${message}`, details);
+    return;
+  }
+  console.log(`[drink submit] ${message}`);
 }
 
 function normalizeDrinkCandidate(value) {
@@ -1074,11 +1092,11 @@ function normalizeDrinkCandidate(value) {
     .toLowerCase();
 }
 
-function resolveDrinkUpsellOptions() {
+function resolvePreSubmitDrinkChoices() {
   const picked = [];
   const usedValues = new Set();
 
-  DRINK_UPSELL_PRESET_OPTIONS.forEach((preset) => {
+  PRE_SUBMIT_DRINK_CHOICES.forEach((preset) => {
     const match = DRINK_TYPE_OPTIONS.find((option) => {
       if (!option || usedValues.has(option)) return false;
       const optionNormalized = normalizeDrinkCandidate(option);
@@ -1091,80 +1109,22 @@ function resolveDrinkUpsellOptions() {
         );
       });
     });
-
-    if (match) {
-      usedValues.add(match);
-      picked.push({ label: preset.label, value: match });
-    }
+    if (!match) return;
+    usedValues.add(match);
+    picked.push({ label: preset.label, value: match });
   });
 
-  if (picked.length < DRINK_UPSELL_PRESET_OPTIONS.length) {
-    DRINK_TYPE_OPTIONS.forEach((option) => {
-      if (!option || usedValues.has(option)) return;
-      usedValues.add(option);
-      picked.push({ label: option, value: option });
-    });
-  }
-
-  return picked.slice(0, DRINK_UPSELL_PRESET_OPTIONS.length);
+  return picked;
 }
 
-function renderDrinkUpsellOptions() {
-  if (!drinkUpsellOptions) return;
-  const options = resolveDrinkUpsellOptions();
-  drinkUpsellOptions.innerHTML = '';
-
-  options.forEach((option) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'drink-picker-option';
-    button.dataset.drinkType = option.value;
-    button.textContent = option.label;
-    button.addEventListener('click', () => {
-      addDrinkFromUpsell(option.value);
-    });
-    drinkUpsellOptions.append(button);
-  });
+function hasDrinkInCart(lines = state.cartLines) {
+  return Array.isArray(lines) && lines.some((line) => isDrinkItem(line));
 }
 
-function syncDrinkUpsellVisibility(lines = state.cartLines) {
-  if (!drinkUpsellBanner) return;
-  if (hasDrinkInCart(lines)) {
-    drinkUpsellBanner.hidden = true;
-    drinkUpsellDismissedForSession = false;
-    return;
-  }
-  if (drinkUpsellDismissedForSession) {
-    drinkUpsellBanner.hidden = true;
-    return;
-  }
-  drinkUpsellBanner.hidden = false;
-}
-
-function openDrinkUpsellModal() {
-  if (!drinkUpsellModal) return;
-  if (hasDrinkInCart()) {
-    syncDrinkUpsellVisibility();
-    return;
-  }
-  renderDrinkUpsellOptions();
-  openModal(drinkUpsellModal);
-}
-
-function addDrinkFromUpsell(drinkType) {
+function addDrinkFromPreSubmitPrompt(drinkType) {
   const safeDrinkType = sanitizeDrinkType(drinkType);
-  if (!safeDrinkType) {
-    showToast('השתייה שבחרתם לא זמינה כרגע', 1800);
-    closeDrinkUpsellModal();
-    return;
-  }
-
-  if (hasDrinkInCart()) {
-    showToast('כבר יש שתייה בעגלה', 1600);
-    closeDrinkUpsellModal();
-    syncDrinkUpsellVisibility();
-    return;
-  }
+  if (!safeDrinkType) return false;
+  if (hasDrinkInCart()) return true;
 
   const itemId = DRINK_UPSELL_ITEM_ID;
   const drinkMenuSelect = menuNodeById(itemId)?.querySelector('.drink-type-select');
@@ -1174,57 +1134,173 @@ function addDrinkFromUpsell(drinkType) {
     clearDrinkError(itemId);
   }
   state.lastDrinkType[itemId] = safeDrinkType;
+
   if (drinkMenuSelect) {
     addItemFromMenu(itemId);
-  } else {
-    const item = itemsById.get(itemId);
-    if (!item) {
-      showToast('לא הצלחנו להוסיף שתייה כרגע', 1800);
-      closeDrinkUpsellModal();
-      return;
-    }
-    const existing = findMatchingEditableLine(itemId, null, safeDrinkType);
-    const displayName = `${item.name} — ${safeDrinkType}`;
-    if (existing) {
-      existing.quantity += 1;
-    } else {
-      state.cartLines.push({
-        lineId: createLineId(),
-        itemId: item.id,
-        name: displayName,
-        baseName: item.name,
-        displayName,
-        category: DRINK_CATEGORY_LABEL,
-        drinkType: safeDrinkType,
-        basePrice: item.price,
-        quantity: 1,
-        options: null,
-        note: '',
-      });
-    }
-    saveState();
-    renderCart();
+    return true;
   }
-  closeDrinkUpsellModal();
-  showToast('נוספה שתייה לעגלה', 1700);
+
+  const item = itemsById.get(itemId);
+  if (!item) return false;
+
+  const existing = findMatchingEditableLine(itemId, null, safeDrinkType);
+  const displayName = `${item.name} — ${safeDrinkType}`;
+  if (existing) {
+    existing.quantity += 1;
+  } else {
+    state.cartLines.push({
+      lineId: createLineId(),
+      itemId: item.id,
+      name: displayName,
+      baseName: item.name,
+      displayName,
+      category: DRINK_CATEGORY_LABEL,
+      drinkType: safeDrinkType,
+      basePrice: item.price,
+      quantity: 1,
+      options: null,
+      note: '',
+      isDrink: true,
+      type: 'drink',
+    });
+  }
+  saveState();
+  renderCart();
+  return true;
 }
 
-function bindDrinkUpsellEvents() {
-  if (!drinkUpsellBanner) return;
+function isDrinkSubmitModalOpen() {
+  return !!ui.drinkSubmitModal.modal
+    && !ui.drinkSubmitModal.modal.hidden
+    && ui.drinkSubmitModal.modal.classList.contains('show');
+}
 
-  drinkUpsellAddBtn?.addEventListener('click', () => {
-    openDrinkUpsellModal();
-  });
+function closeDrinkSubmitModal({ restoreFocus = true } = {}) {
+  const modalState = ui.drinkSubmitModal;
+  if (!modalState.modal) return;
+  closeModal(modalState.modal);
+  if (restoreFocus && modalState.lastFocused instanceof HTMLElement) {
+    modalState.lastFocused.focus({ preventScroll: true });
+  }
+  modalState.lastFocused = null;
+}
 
-  drinkUpsellDismissBtn?.addEventListener('click', () => {
-    drinkUpsellDismissedForSession = true;
-    syncDrinkUpsellVisibility();
-  });
+function getFocusableModalElements(root) {
+  if (!root) return [];
+  return Array.from(
+    root.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter(
+    (node) => !node.hasAttribute('hidden')
+      && !node.getAttribute('aria-hidden')
+      && node.getClientRects().length > 0,
+  );
+}
 
-  drinkUpsellModalCloseBtn?.addEventListener('click', closeDrinkUpsellModal);
-  drinkUpsellModal?.addEventListener('click', (event) => {
-    if (event.target === drinkUpsellModal) closeDrinkUpsellModal();
+function showDrinkSubmitPromptStep() {
+  const modalState = ui.drinkSubmitModal;
+  if (!modalState.promptStep || !modalState.chooserStep) return;
+  modalState.promptStep.hidden = false;
+  modalState.chooserStep.hidden = true;
+}
+
+function showDrinkSubmitChooserStep() {
+  const modalState = ui.drinkSubmitModal;
+  if (!modalState.promptStep || !modalState.chooserStep) return;
+  modalState.promptStep.hidden = true;
+  modalState.chooserStep.hidden = false;
+}
+
+function resolveDrinkSubmitDecision(decision) {
+  const modalState = ui.drinkSubmitModal;
+  const resolver = modalState.resolver;
+  modalState.resolver = null;
+  closeDrinkSubmitModal();
+  if (typeof resolver === 'function') resolver(decision);
+}
+
+function handleDrinkSubmitSkip() {
+  resolveDrinkSubmitDecision({ action: 'skip' });
+}
+
+function handleDrinkSubmitAddDecision(drinkType) {
+  resolveDrinkSubmitDecision({ action: 'add', drinkType });
+}
+
+function handleDrinkSubmitModalKeydown(event) {
+  if (!isDrinkSubmitModalOpen()) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    handleDrinkSubmitSkip();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+
+  const modalState = ui.drinkSubmitModal;
+  const focusable = getFocusableModalElements(modalState.modal);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus({ preventScroll: true });
+    return;
+  }
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus({ preventScroll: true });
+  }
+}
+
+function openDrinkSubmitModal() {
+  const modalState = ui.drinkSubmitModal;
+  if (!modalState.modal) return Promise.resolve({ action: 'skip' });
+
+  modalState.lastFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  showDrinkSubmitPromptStep();
+  openModal(modalState.modal);
+  document.addEventListener('keydown', handleDrinkSubmitModalKeydown, true);
+  modalState.yesButton?.focus({ preventScroll: true });
+
+  return new Promise((resolve) => {
+    modalState.resolver = resolve;
+  }).finally(() => {
+    document.removeEventListener('keydown', handleDrinkSubmitModalKeydown, true);
   });
+}
+
+async function handleOrderSubmitIntent() {
+  if (orderSubmitIntentInFlight) return;
+
+  const validationError = validateOrder();
+  if (validationError) {
+    formErrorElement.textContent = validationError;
+    openMobileCart();
+    return;
+  }
+
+  orderSubmitIntentInFlight = true;
+  try {
+    if (!hasDrinkInCart()) {
+      devLog('No drink in cart, showing pre-submit modal');
+      const decision = await openDrinkSubmitModal();
+      if (decision?.action === 'add') {
+        const added = addDrinkFromPreSubmitPrompt(decision.drinkType);
+        if (!added) {
+          showToast('לא הצלחנו להוסיף שתייה כרגע', 1800);
+        } else {
+          showToast('נוספה שתייה לעגלה', 1400);
+        }
+      }
+    }
+
+    await submitOrderFromConfirm();
+  } finally {
+    orderSubmitIntentInFlight = false;
+  }
 }
 
 function parseItemData(node) {
@@ -1246,8 +1322,34 @@ function isSandwichItem(itemId) {
   return SANDWICH_ITEM_IDS.has(itemId);
 }
 
-function isDrinkItem(itemId) {
-  return DRINK_ITEM_IDS.has(itemId);
+function isDrinkItem(itemOrId) {
+  if (!itemOrId) return false;
+
+  if (typeof itemOrId === 'string') {
+    return DRINK_ITEM_IDS.has(itemOrId);
+  }
+
+  const itemId = String(itemOrId.itemId || itemOrId.id || '').trim();
+  if (itemId && DRINK_ITEM_IDS.has(itemId)) return true;
+  if (itemOrId.isDrink === true) return true;
+
+  const category = normalizeDrinkCandidate(itemOrId.category);
+  if (
+    category === 'drink'
+    || category === normalizeDrinkCandidate(DRINK_CATEGORY_LABEL)
+    || category.includes('שתייה')
+    || category.includes('שתיה')
+  ) {
+    return true;
+  }
+
+  const type = normalizeDrinkCandidate(itemOrId.type);
+  if (type === 'drink') return true;
+
+  const combinedText = normalizeDrinkCandidate(
+    `${itemOrId.name || ''} ${itemOrId.displayName || ''} ${itemOrId.baseName || ''}`,
+  );
+  return DRINK_NAME_KEYWORDS.some((keyword) => combinedText.includes(keyword));
 }
 
 function sanitizeDrinkType(value) {
@@ -2538,7 +2640,6 @@ function renderCart() {
 
   cartItemsElement.innerHTML = '';
   cartEmptyElement.style.display = entries.length === 0 ? 'block' : 'none';
-  syncDrinkUpsellVisibility(entries);
 
   entries.forEach((entry) => {
     const unitPrice = lineUnitPrice(entry);
@@ -3120,6 +3221,88 @@ function buildDrinkChangeModal() {
   });
 }
 
+function renderDrinkSubmitOptions() {
+  const optionsRoot = ui.drinkSubmitModal.optionsRoot;
+  if (!optionsRoot) return;
+
+  const choices = resolvePreSubmitDrinkChoices();
+  optionsRoot.innerHTML = '';
+
+  choices.forEach((option) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'drink-submit-option';
+    button.dataset.drinkType = option.value;
+    button.textContent = option.label;
+    button.addEventListener('click', () => {
+      handleDrinkSubmitAddDecision(option.value);
+    });
+    optionsRoot.append(button);
+  });
+}
+
+function buildDrinkSubmitModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay drink-submit-modal';
+  modal.id = 'drinkSubmitModal';
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="modal-card drink-submit-card" role="dialog" aria-modal="true" aria-labelledby="drinkSubmitTitle">
+      <button type="button" class="drink-submit-close" id="drinkSubmitClose" aria-label="סגירה">
+        &times;
+      </button>
+
+      <div id="drinkSubmitPromptStep">
+        <h3 id="drinkSubmitTitle">רגע לפני ששולחים…</h3>
+        <p class="drink-submit-body">רוצה להוסיף שתייה להזמנה?</p>
+        <div class="modal-actions drink-submit-actions">
+          <button type="button" class="btn" id="drinkSubmitYes">כן, תוסיף שתייה</button>
+          <button type="button" class="btn secondary" id="drinkSubmitNo">לא, שלח ככה</button>
+        </div>
+      </div>
+
+      <div id="drinkSubmitChooserStep" hidden>
+        <h3>בחרו שתייה</h3>
+        <p class="drink-submit-body">השתייה תתווסף לעגלה ב־12₪ וההזמנה תישלח מיד.</p>
+        <div class="drink-submit-options" id="drinkSubmitOptions"></div>
+        <div class="modal-actions drink-submit-actions">
+          <button type="button" class="btn secondary" id="drinkSubmitBack">חזרה</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.append(modal);
+
+  const modalState = ui.drinkSubmitModal;
+  modalState.modal = modal;
+  modalState.closeButton = modal.querySelector('#drinkSubmitClose');
+  modalState.yesButton = modal.querySelector('#drinkSubmitYes');
+  modalState.noButton = modal.querySelector('#drinkSubmitNo');
+  modalState.backButton = modal.querySelector('#drinkSubmitBack');
+  modalState.promptStep = modal.querySelector('#drinkSubmitPromptStep');
+  modalState.chooserStep = modal.querySelector('#drinkSubmitChooserStep');
+  modalState.optionsRoot = modal.querySelector('#drinkSubmitOptions');
+
+  renderDrinkSubmitOptions();
+
+  modalState.closeButton?.addEventListener('click', handleDrinkSubmitSkip);
+  modalState.noButton?.addEventListener('click', handleDrinkSubmitSkip);
+  modalState.yesButton?.addEventListener('click', () => {
+    showDrinkSubmitChooserStep();
+    const firstChoice = modalState.optionsRoot?.querySelector('button');
+    firstChoice?.focus({ preventScroll: true });
+  });
+  modalState.backButton?.addEventListener('click', () => {
+    showDrinkSubmitPromptStep();
+    modalState.yesButton?.focus({ preventScroll: true });
+  });
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      // Intentionally do nothing on backdrop click.
+    }
+  });
+}
+
 function openLineEditor(lineId) {
   const line = state.cartLines.find((entry) => entry.lineId === lineId);
   if (!line) return;
@@ -3410,7 +3593,16 @@ function bindFormEvents() {
   });
   resetAllButton?.addEventListener('click', openResetAllConfirmation);
 
-  sendOrderButton.addEventListener('click', openCheckoutConfirmation);
+  sendOrderButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    handleOrderSubmitIntent();
+  });
+  if (orderFormElement?.tagName === 'FORM') {
+    orderFormElement.addEventListener('submit', (event) => {
+      event.preventDefault();
+      handleOrderSubmitIntent();
+    });
+  }
 
   mobileCartButton?.addEventListener('click', () => {
     if (cartPanel.classList.contains('open')) {
@@ -3422,16 +3614,16 @@ function bindFormEvents() {
   mobileCartCloseButton?.addEventListener('click', () => closeMobileCart());
   mobileCartBackdrop?.addEventListener('click', closeMobileCart);
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isDrinkSubmitModalOpen()) {
+      handleDrinkSubmitSkip();
+      return;
+    }
     if (event.key === 'Escape' && cartPanel.classList.contains('open')) {
       closeMobileCart();
       return;
     }
     if (event.key === 'Escape' && isSupportChatOpen()) {
       closeSupportChatModal();
-      return;
-    }
-    if (event.key === 'Escape' && drinkUpsellModal && !drinkUpsellModal.hidden) {
-      closeDrinkUpsellModal();
     }
   });
 
@@ -3465,7 +3657,7 @@ function init() {
   buildConfirmModal();
   buildResetAllModal();
   buildDrinkChangeModal();
-  bindDrinkUpsellEvents();
+  buildDrinkSubmitModal();
   bindSupportChatUiEvents();
   bootstrapSupportChat().catch((error) => {
     console.error('Failed to bootstrap support chat', error);
