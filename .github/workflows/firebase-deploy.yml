@@ -22,16 +22,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Required Deploy Secrets
+        id: secret_check
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_B64 }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON_B64" ] || [ -n "$GOOGLE_APPLICATION_CREDENTIALS_JSON" ]; then
+            echo "has_firebase_auth=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_firebase_auth=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -n "$TWILIO_ACCOUNT_SID" ] && [ -n "$TWILIO_AUTH_TOKEN" ] && [ -n "$TWILIO_FROM_NUMBER" ]; then
+            echo "has_twilio_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_twilio_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install Firebase CLI
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         run: npm i -g firebase-tools
 
       - name: Install Functions Dependencies
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         working-directory: functions
         run: |
@@ -42,10 +67,12 @@ jobs:
           fi
 
       - name: Validate Functions Syntax
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         run: node --check functions/index.js
 
       - name: Setup Service Account Credentials
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON_B64 }}
@@ -69,6 +96,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp.json" >> "$GITHUB_ENV"
 
       - name: Firebase Auth Debug
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         run: |
           echo "firebase-tools version:"
@@ -86,6 +114,7 @@ jobs:
           fi
 
       - name: Sync Twilio Firebase Functions Secrets
+        if: steps.secret_check.outputs.has_firebase_auth == 'true' && steps.secret_check.outputs.has_twilio_secrets == 'true'
         shell: bash
         env:
           TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
@@ -109,8 +138,24 @@ jobs:
           firebase functions:secrets:set TWILIO_AUTH_TOKEN --project "$FIREBASE_PROJECT_ID" --data-file "$token_file" --non-interactive
           firebase functions:secrets:set TWILIO_FROM_NUMBER --project "$FIREBASE_PROJECT_ID" --data-file "$from_file" --non-interactive
 
+      - name: Warn If Twilio Secrets Missing
+        if: steps.secret_check.outputs.has_firebase_auth == 'true' && steps.secret_check.outputs.has_twilio_secrets != 'true'
+        shell: bash
+        run: |
+          echo "::warning::TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER are missing."
+          echo "::warning::Skipping Twilio secrets sync. Deploy will continue with existing Firebase secrets."
+
       - name: Deploy Functions and Rules
+        if: steps.secret_check.outputs.has_firebase_auth == 'true'
         shell: bash
         run: |
           echo "Deploying functions + firestore rules to $FIREBASE_PROJECT_ID"
           firebase deploy --only functions,firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive
+
+      - name: Skip Deploy (Missing Firebase Auth Secret)
+        if: steps.secret_check.outputs.has_firebase_auth != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Skipping Firebase deploy."
+          echo "::warning::Set one of these repository secrets to enable deployment:"
+          echo "::warning::FIREBASE_SERVICE_ACCOUNT_JSON_B64 or GOOGLE_APPLICATION_CREDENTIALS_JSON"
